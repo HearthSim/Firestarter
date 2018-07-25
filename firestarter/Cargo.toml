@@ -26,6 +26,13 @@ name = "vanilla-server"
 path = "src/bin/vanilla_server.rs"
 
 [dependencies]
+# Syntax improving libraries
+typed-builder = "~0.1.0"
+
+# Logging infrastructure
+slog = "^2.3.0"
+slog-stdlog = "^3.0.0"
+
 
 [features]
 
