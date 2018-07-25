@@ -1,0 +1,32 @@
+[package]
+name = "firestarter"
+version = "0.1.0"
+license = "AGPL-3.0-or-later"
+# Append other authors below
+authors = ["Bert Proesmans <bproesmans@hotmail.com>"]
+
+# Disable usage of a build script
+build = false
+
+# Examples and benches are not automatically included within each build
+# to reduce total compilation time.
+# Look for dependant crates implementing binaries, examples and benchmarks.
+autoexamples = false
+autobenches = false
+autobins = false
+autotests = true
+
+[lib]
+bench = false
+
+# Definition of the only binary entry point we support within the main crate.
+# Look for dependant crates implementing specialized binaries.
+[[bin]]
+name = "vanilla-server"
+path = "src/bin/vanilla_server.rs"
+
+[dependencies]
+
+[features]
+
+[dev-dependancies]
