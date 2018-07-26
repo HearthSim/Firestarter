@@ -12,8 +12,11 @@
 extern crate typed_builder;
 #[macro_use]
 extern crate slog;
+#[macro_use]
+extern crate failure;
 
 extern crate slog_stdlog;
+extern crate tokio_tcp;
 
 pub mod log;
 pub mod server;
