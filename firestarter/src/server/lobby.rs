@@ -3,10 +3,6 @@
 //! A lobby server is the program responsible for authenticating players
 //! and responding to in-game activities.
 
-// TODO: Attribute can be removed when https://github.com/idanarye/rust-typed-builder/pull/4
-// is merged.
-#![allow(missing_docs)]
-
 use slog;
 use std::net::SocketAddr;
 
