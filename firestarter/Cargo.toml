@@ -25,21 +25,19 @@ bench = false
 name = "vanilla-server"
 path = "src/bin/vanilla_server.rs"
 
-# Semver syntax is explained here:
-# https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#specifying-dependencies-from-cratesio
 [dependencies]
 # Syntax improving libraries
-typed-builder = "~0.1.0"
+typed-builder = "=0.1.1"
 
 # Logging infrastructure
-slog = "^2.3.0"
-slog-stdlog = "^3.0.0"
+slog = ">=2.3.2, <2.4.0"
+slog-stdlog = ">=3.0.2, <3.1.0"
 
 # Asynchronous programming
-tokio-tcp = "~0.1.0"
+tokio-tcp = "=0.1.0"
 
 # Error handling
-failure = "~0.1.1"
+failure = "=0.1.1"
 
 
 [features]
