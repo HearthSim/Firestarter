@@ -14,9 +14,26 @@ extern crate typed_builder;
 extern crate slog;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate error_chain;
 
+extern crate futures;
 extern crate slog_stdlog;
+extern crate tokio;
+extern crate tokio_executor;
 extern crate tokio_tcp;
 
 pub mod log;
+pub mod protocol;
 pub mod server;
+pub use self::error::*;
+
+mod error {
+    error_chain! {
+        errors {}
+
+        links {}
+
+        foreign_links {}
+    }
+}

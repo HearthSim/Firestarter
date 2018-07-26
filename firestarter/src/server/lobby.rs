@@ -3,14 +3,31 @@
 //! A lobby server is the program responsible for authenticating players
 //! and responding to in-game activities.
 
+use futures::prelude::*;
 use slog;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::runtime;
+use tokio_executor as executor;
 use tokio_tcp::TcpListener;
 
 use log;
+use protocol::bnet;
 
 // Re-export all types defined within the error submodule (see below)
 pub use self::error::*;
+
+/// Amount of time to pause accepting new clients when an I/O error is returned
+/// by the listening socket.
+const _DEFAULT_ERROR_TIMEOUT: Duration = Duration::from_millis(100);
+
+/// Maximum amount of clients to accept.
+/// This value is set to make sure we don't deplete all system resources.
+///
+/// There is a hard limit on the amount of connections a system can handle, which
+/// depends on your OS.
+const _DEFAULT_MAX_CONNECTIONS: usize = 1000;
 
 #[derive(Debug, Default, Clone, Copy)]
 /// Object for defining how a socket binding failure must be resolved.
@@ -51,27 +68,63 @@ pub struct ServerConfig {
 }
 
 #[derive(Debug)]
+/// Object for sending commands to a running server.
+pub struct ServerHandle {
+    _inner: (),
+}
+
+#[derive(Debug)]
 /// Handle for lobby server activities.
 ///
 /// An instance of this object must be scheduled on an asynchronous runtime. TODO!
 pub struct LobbyServer {
     listener: TcpListener,
-    logger: slog::Logger,
+    config: ServerConfig,
 }
 
 impl LobbyServer {
+    /// Starts the server.
+    ///
+    /// This method sets up a Tokio runtime and executes the server task.
+    /// This method only returns AFTER all tasks have been completed and/or dropped.
+    pub fn run(self) {
+        // Do NOT ignore the handle, because it could contain communication channels.
+        // Channel receivers/senders return an error when the other side is dropped which
+        // *could* prematurely finish the future task.
+        let (_handle, task) = self.split();
+        runtime::run(task);
+    }
+
+    /// Split this object into a control-handle and a future.
+    ///
+    /// The future is a task which executes the activities of a lobby server. This task
+    /// must be scheduled on your Tokio runtime.
+    /// The handle can be used to interact with the task (=server) while it's running.
+    pub fn split(self) -> (ServerHandle, impl Future<Item = (), Error = ()>) {
+        let LobbyServer { listener, config } = self;
+        let ServerConfig { logger, .. } = config;
+
+        let handle = ServerHandle { _inner: () };
+        let shared = Arc::new(Mutex::new(ServerShared {}));
+        let err_logger = logger.clone();
+
+        let task = listener
+            .incoming()
+            .for_each(move |client| {
+                let client_task =
+                    bnet::handshake::handle_client(client, shared.clone(), logger.clone());
+                executor::spawn(client_task);
+                Ok(())
+            })
+            .map_err(move |e| error!(err_logger, "Server loop ended with error!"; "error" => ?e));
+
+        (handle, task)
+    }
+
     /// Constructs a new handle from the provided configuration.
-    pub fn with(config: &ServerConfig) -> Result<Self, BindError> {
-        let ServerConfig {
-            bind_address,
-            bind_fallback,
-            logger,
-        } = config;
-        let listener = Self::try_tcp_bind(bind_address, bind_fallback)?;
-        Ok(Self {
-            listener,
-            logger: logger.clone(),
-        })
+    pub fn with(config: ServerConfig) -> Result<Self, BindError> {
+        let listener = Self::try_tcp_bind(&config.bind_address, &config.bind_fallback)?;
+        Ok(Self { listener, config })
     }
 
     /// Attempt binding to the provided address.
@@ -108,6 +161,10 @@ impl LobbyServer {
         ))
     }
 }
+
+#[derive(Debug)]
+/// Structure containing data accessible to each client handler.
+pub struct ServerShared {}
 
 mod error {
     use std::io;

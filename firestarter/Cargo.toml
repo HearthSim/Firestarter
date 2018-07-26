@@ -34,10 +34,14 @@ slog = ">=2.3.2, <2.4.0"
 slog-stdlog = ">=3.0.2, <3.1.0"
 
 # Asynchronous programming
+tokio = "=0.1.7"
 tokio-tcp = "=0.1.0"
+tokio-executor = "=0.1.2"
+futures = ">=0.1.23, <0.2.0"
 
 # Error handling
 failure = "=0.1.1"
+error-chain = ">=0.12.0, <0.13.0"
 
 
 [features]
