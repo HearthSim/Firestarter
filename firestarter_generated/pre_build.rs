@@ -63,7 +63,7 @@ fn build_protos() -> Paths {
         .expect("Failed compiling proto schemas");
     env::set_var(ENV_OUT_DIR, &build_dir);
     // Only run this script again if the source directory with the proto schemas was updated
-    println!("cargo:rerun-if-changed=\"{}\"", proto_out_dir.display());
+    println!("cargo:rerun-if-changed={}", proto_out_dir.display());
 
     // TODO: Glob compiled proto schemas.
     let compiled_proto_file_glob = format!("{:}/**/*.rs", proto_out_dir.display());
@@ -138,14 +138,14 @@ fn concat_protos(files: Paths) {
                             // Write out module contents
                             copy(&mut file_reader, &mut file_writer).expect("IO Read+Write");
                             break;
-                        },
+                        }
                         (false, true) => {
                             // The current module situation is deeper than necessary for this file.
                             // We need to pop all next module parts from 'current_module'.
                             should_close_modules = true;
                             // Cut off at the next idx; [0, idx[ and [idx, len[
                             current_module_depth += 1;
-                        },
+                        }
                         (_, false) => current_module_depth += 1,
                     };
                 }
@@ -158,7 +158,7 @@ fn concat_protos(files: Paths) {
                 (None, None) => {
                     // We could have cut too far, so reduce the depth by one
                     current_module_depth -= 1;
-                },
+                }
                 (None, Some(_)) => unreachable!(),
             }
 
