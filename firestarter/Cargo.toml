@@ -41,6 +41,7 @@ tokio = "=0.1.7"
 tokio-tcp = "=0.1.0"
 tokio-executor = "=0.1.2"
 tokio-codec = "=0.1.0"
+tokio-timer = "=0.2.4"
 futures = ">=0.1.23, <0.2.0"
 
 # Error handling

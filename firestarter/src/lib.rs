@@ -25,6 +25,7 @@ extern crate tokio;
 extern crate tokio_codec;
 extern crate tokio_executor;
 extern crate tokio_tcp;
+extern crate tokio_timer;
 
 extern crate firestarter_generated;
 

@@ -79,6 +79,28 @@ impl LightWeightSession {
                 Ok(self)
             })
     }
+
+    /// Transforms the current lightweight session in a complete user session.
+    ///
+    /// This transformation comes with big allocations.
+    pub fn into_full_session(self) -> ClientSession {
+        unimplemented!()
+    }
+}
+
+#[derive(Debug)]
+/// A complete user session.
+///
+/// This structure contains the necessary data to properly communicate with a specific client.
+pub struct ClientSession {}
+
+impl Future for ClientSession {
+    type Item = ();
+    type Error = SessionError;
+
+    fn poll(&mut self) -> Poll<(), SessionError> {
+        unimplemented!()
+    }
 }
 
 mod error {
@@ -94,6 +116,10 @@ mod error {
         #[fail(display = "Client didn't send expected request")]
         /// Session failure because of faulty client communications.
         MissingRequest,
+
+        #[fail(display = "A passed deadline triggered a timeout on the connection")]
+        /// The client did not responsd (properly) within the set deadline.
+        Timeout,
 
         #[fail(display = "{}", _0)]
         /// Session failure due to malformed data.
