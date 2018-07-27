@@ -40,20 +40,10 @@ fn handshake_operation() -> impl Future<Item = (), Error = HandshakeError> {
 }
 
 mod error {
-    use protocol::bnet::frame::CodecError;
+    use protocol::bnet::session::SessionError;
+    // Just shortcut the type until it's meaningful to have specific errors
+    // for handshake situations.
 
-    #[derive(Debug, Fail)]
-    /// Error type related to the handshake operation between client and server.
-    pub enum HandshakeError {
-        #[fail(display = "{}", _0)]
-        /// Handshake failed due to malformed data.
-        Codec(#[cause] CodecError),
-    }
-
-    // Implementation necessary as per constraint from Encoder::Error + Decoder::Error
-    impl From<CodecError> for HandshakeError {
-        fn from(x: CodecError) -> Self {
-            HandshakeError::Codec(x)
-        }
-    }
+    /// Error thrown during handshaking with new clients.
+    pub type HandshakeError = SessionError;
 }

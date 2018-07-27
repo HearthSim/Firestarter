@@ -30,7 +30,9 @@ extern crate firestarter_generated;
 
 pub mod log;
 pub mod protocol;
+pub mod rpc;
 pub mod server;
+
 pub use self::error::*;
 
 mod error {
