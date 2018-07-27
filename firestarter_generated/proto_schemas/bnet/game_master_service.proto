@@ -1,0 +1,223 @@
+syntax = "proto2";
+package bnet.protocol.game_master;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/game_factory.proto";
+import "bnet/server_pool_types.proto";
+import "bnet/attribute.proto";
+import "bnet/entity.proto";
+import "bnet/rpc.proto";
+import "bnet/global_extensions/method_options.proto";
+import "bnet/game_master_types.proto";
+
+
+message ServerPair {
+	optional .bnet.protocol.ProcessId host = 1;
+	optional .bnet.protocol.ProcessId proxy = 2;
+}
+
+message JoinGameRequest {
+	required .bnet.protocol.game_master.GameHandle game_handle = 1;
+	repeated .bnet.protocol.game_master.Player player = 2;
+	optional bool advanced_notification = 3 [default = false];
+}
+
+message JoinGameResponse {
+	optional fixed64 request_id = 1;
+	optional bool queued = 2 [default = false];
+	repeated .bnet.protocol.game_master.ConnectInfo connect_info = 3;
+}
+
+message ListFactoriesRequest {
+	required .bnet.protocol.attribute.AttributeFilter filter = 1;
+	optional uint32 start_index = 2 [default = 0];
+	optional uint32 max_results = 3 [default = 100];
+}
+
+message ListFactoriesResponse {
+	repeated .bnet.protocol.game_master.GameFactoryDescription description = 1;
+	optional uint32 total_results = 2;
+}
+
+message FindGameRequest {
+	repeated .bnet.protocol.game_master.Player player = 1;
+	optional fixed64 factory_id = 2;
+	optional .bnet.protocol.game_master.GameProperties properties = 3;
+	optional uint64 object_id = 4;
+	optional fixed64 request_id = 5;
+	optional bool advanced_notification = 6 [default = false];
+}
+
+message FindGameResponse {
+	optional fixed64 request_id = 1;
+	optional fixed64 factory_id = 2;
+	optional bool queued = 3 [default = false];
+}
+
+message GameEndedNotification {
+	required .bnet.protocol.game_master.GameHandle game_handle = 1;
+	optional uint32 reason = 2 [default = 0];
+}
+
+message PlayerLeftNotification {
+	required .bnet.protocol.game_master.GameHandle game_handle = 1;
+	required .bnet.protocol.EntityId member_id = 2;
+	optional uint32 reason = 3 [default = 1];
+}
+
+message RegisterServerRequest {
+	repeated .bnet.protocol.attribute.Attribute attribute = 1;
+	optional .bnet.protocol.server_pool.ServerState state = 2;
+	required fixed32 program_id = 3;
+}
+
+message UnregisterServerRequest {
+}
+
+message RegisterUtilitiesRequest {
+	repeated .bnet.protocol.attribute.Attribute attribute = 1;
+	optional .bnet.protocol.server_pool.ServerState state = 2;
+	required fixed32 program_id = 3;
+}
+
+message UnregisterUtilitiesRequest {
+}
+
+message SubscribeRequest {
+	required uint64 object_id = 1;
+}
+
+message SubscribeResponse {
+	optional uint64 subscription_id = 1;
+}
+
+message UnsubscribeRequest {
+	required uint64 subscription_id = 1;
+}
+
+message ChangeGameRequest {
+	required .bnet.protocol.game_master.GameHandle game_handle = 1;
+	optional bool open = 2;
+	repeated .bnet.protocol.attribute.Attribute attribute = 3;
+	optional bool replace = 4 [default = false];
+}
+
+message GetFactoryInfoRequest {
+	required fixed64 factory_id = 1;
+}
+
+message GetFactoryInfoResponse {
+	repeated .bnet.protocol.attribute.Attribute attribute = 1;
+	repeated .bnet.protocol.game_master.GameStatsBucket stats_bucket = 2;
+}
+
+message GetGameStatsRequest {
+	required fixed64 factory_id = 1;
+	required .bnet.protocol.attribute.AttributeFilter filter = 2;
+}
+
+message GetGameStatsResponse {
+	repeated .bnet.protocol.game_master.GameStatsBucket stats_bucket = 1;
+}
+
+message SetGameSlotsRequest {
+	optional uint32 game_slots = 1;
+	optional uint32 create_game_rate = 2;
+}
+
+message GameCreatedNotification {
+	optional .bnet.protocol.game_master.GameHandle game_handle = 1;
+	optional uint32 error_id = 2;
+	repeated .bnet.protocol.game_master.ConnectInfo connect_info = 3;
+}
+
+message GameRequestEntry {
+	optional fixed64 factory_id = 1;
+	optional uint32 num_games = 2;
+}
+
+message GameRequestServerEntry {
+	optional .bnet.protocol.game_master.ServerPair host = 1;
+	repeated .bnet.protocol.game_master.GameRequestEntry game_requests = 2;
+}
+
+message RequestGamesRequest {
+	repeated .bnet.protocol.game_master.GameRequestServerEntry game_requests_per_server = 1;
+}
+
+message GameResponseEntry {
+	optional fixed64 factory_id = 1;
+	optional float popularity = 2;
+}
+
+message RequestGamesResponse {
+	repeated .bnet.protocol.game_master.GameResponseEntry game_response = 1;
+}
+
+message GetFindGameRequestsRequest {
+	optional fixed64 factory_id = 1;
+	optional uint32 num_players = 2;
+}
+
+message GetFindGameRequestsResponse {
+	repeated .bnet.protocol.game_master.FindGameRequest find_game_request = 1;
+	optional uint32 queue_depth = 2;
+}
+
+message FactoryUpdateNotification {
+	enum Operation {
+		ADD = 1;
+		REMOVE = 2;
+		CHANGE = 3;
+	}
+	required .bnet.protocol.game_master.FactoryUpdateNotification.Operation op = 1;
+	required .bnet.protocol.game_master.GameFactoryDescription description = 2;
+	optional fixed32 program_id = 3;
+	repeated .bnet.protocol.game_master.ServerPair hosts = 4;
+}
+
+message GameFoundNotification {
+	required fixed64 request_id = 1;
+	optional uint32 error_code = 2 [default = 0];
+	optional .bnet.protocol.game_master.GameHandle game_handle = 3;
+	repeated .bnet.protocol.game_master.ConnectInfo connect_info = 4;
+	optional bool remove_from_queue = 5 [default = false];
+}
+
+message MatchmakerResultNotification {
+	required fixed64 request_id = 1;
+	optional uint32 error_code = 2 [default = 0];
+	optional bool remove_from_queue = 3 [default = false];
+}
+
+service GameMaster {
+	rpc JoinGame (.bnet.protocol.game_master.JoinGameRequest) returns (.bnet.protocol.game_master.JoinGameResponse);
+	rpc ListFactories (.bnet.protocol.game_master.ListFactoriesRequest) returns (.bnet.protocol.game_master.ListFactoriesResponse);
+	rpc FindGame (.bnet.protocol.game_master.FindGameRequest) returns (.bnet.protocol.game_master.FindGameResponse);
+	rpc CancelGameEntry (.bnet.protocol.game_master.CancelGameEntryRequest) returns (.bnet.protocol.game_master.CancelGameEntryResponse);
+	rpc GameEnded (.bnet.protocol.game_master.GameEndedNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc PlayerLeft (.bnet.protocol.game_master.PlayerLeftNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc RegisterServer (.bnet.protocol.game_master.RegisterServerRequest) returns (.bnet.protocol.NoData);
+	rpc UnregisterServer (.bnet.protocol.game_master.UnregisterServerRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc RegisterUtilities (.bnet.protocol.game_master.RegisterUtilitiesRequest) returns (.bnet.protocol.NoData);
+	rpc UnregisterUtilities (.bnet.protocol.game_master.UnregisterUtilitiesRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc Subscribe (.bnet.protocol.game_master.SubscribeRequest) returns (.bnet.protocol.game_master.SubscribeResponse);
+	rpc Unsubscribe (.bnet.protocol.game_master.UnsubscribeRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc ChangeGame (.bnet.protocol.game_master.ChangeGameRequest) returns (.bnet.protocol.NoData);
+	rpc GetFactoryInfo (.bnet.protocol.game_master.GetFactoryInfoRequest) returns (.bnet.protocol.game_master.GetFactoryInfoResponse);
+	rpc GetGameStats (.bnet.protocol.game_master.GetGameStatsRequest) returns (.bnet.protocol.game_master.GetGameStatsResponse);
+	rpc SetGameSlots (.bnet.protocol.game_master.SetGameSlotsRequest) returns (.bnet.protocol.NoData);
+	rpc OnGameCreated (.bnet.protocol.game_master.GameCreatedNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc RequestGames (.bnet.protocol.game_master.RequestGamesRequest) returns (.bnet.protocol.game_master.RequestGamesResponse);
+	rpc GetFindGameRequests (.bnet.protocol.game_master.GetFindGameRequestsRequest) returns (.bnet.protocol.game_master.GetFindGameRequestsResponse);
+}
+
+service GameFactorySubscriber {
+	rpc NotifyFactoryUpdate (.bnet.protocol.game_master.FactoryUpdateNotification) returns (.bnet.protocol.NO_RESPONSE);
+}
+
+service GameRequestSubscriber {
+	rpc NotifyGameFound (.bnet.protocol.game_master.GameFoundNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc NotifyMatchmakerResult (.bnet.protocol.game_master.MatchmakerResultNotification) returns (.bnet.protocol.NO_RESPONSE);
+}

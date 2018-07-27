@@ -1,0 +1,42 @@
+syntax = "proto2";
+package bnet.protocol.diag;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/rpc.proto";
+import "bnet/global_extensions/method_options.proto";
+
+
+message GetVarRequest {
+	required string name = 1;
+}
+
+message GetVarResponse {
+	required string value = 1;
+}
+
+message SetVarRequest {
+	required string name = 1;
+	required string value = 2;
+}
+
+message QueryRequest {
+	required string name = 1;
+	repeated string args = 2;
+}
+
+message Row {
+	repeated string values = 1;
+}
+
+message QueryResponse {
+	required string name = 1;
+	repeated string columns = 2;
+	repeated .bnet.protocol.diag.Row rows = 3;
+}
+
+service DiagService {
+	rpc GetVar (.bnet.protocol.diag.GetVarRequest) returns (.bnet.protocol.diag.GetVarResponse);
+	rpc SetVar (.bnet.protocol.diag.SetVarRequest) returns (.bnet.protocol.NoData);
+	rpc Query (.bnet.protocol.diag.QueryRequest) returns (.bnet.protocol.diag.QueryResponse);
+}

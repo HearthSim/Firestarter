@@ -1,0 +1,24 @@
+syntax = "proto2";
+package bnet.protocol;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/global_extensions/field_options.proto";
+
+
+message EntityId {
+	required fixed64 high = 1;
+	required fixed64 low = 2;
+}
+
+message Identity {
+	optional .bnet.protocol.EntityId account_id = 1;
+	optional .bnet.protocol.EntityId game_account_id = 2;
+}
+
+message AccountInfo {
+	optional bool account_paid = 1 [default = false];
+	optional fixed32 country_id = 2 [default = 0];
+	optional string battle_tag = 3;
+	optional bool manual_review = 4 [default = false];
+}

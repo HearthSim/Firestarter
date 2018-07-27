@@ -1,0 +1,98 @@
+syntax = "proto2";
+package bnet.protocol.challenge;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/attribute.proto";
+import "bnet/entity.proto";
+import "bnet/rpc.proto";
+import "bnet/global_extensions/method_options.proto";
+import "bnet/global_extensions/field_options.proto";
+
+
+message Challenge {
+	required fixed32 type = 1;
+	optional string info = 2;
+	optional string answer = 3;
+	optional uint32 retries = 4;
+}
+
+message ChallengePickedRequest {
+	required fixed32 challenge = 1;
+	optional uint32 id = 2;
+	optional bool new_challenge_protocol = 3 [default = false];
+}
+
+message ChallengePickedResponse {
+	optional bytes data = 1;
+}
+
+message ChallengeAnsweredRequest {
+	required string answer = 1;
+	optional bytes data = 2;
+	optional uint32 id = 3;
+}
+
+message ChallengeAnsweredResponse {
+	optional bytes data = 1;
+	optional bool do_retry = 2;
+	optional bool record_not_found = 3;
+}
+
+message ChallengeCancelledRequest {
+	optional uint32 id = 1;
+}
+
+message SendChallengeToUserRequest {
+	optional .bnet.protocol.ProcessId peer_id = 1;
+	optional .bnet.protocol.EntityId game_account_id = 2;
+	repeated .bnet.protocol.challenge.Challenge challenges = 3;
+	required fixed32 context = 4;
+	optional uint64 timeout = 5;
+	repeated .bnet.protocol.attribute.Attribute attributes = 6;
+}
+
+message SendChallengeToUserResponse {
+	optional uint32 id = 1;
+}
+
+message ChallengeUserRequest {
+	repeated .bnet.protocol.challenge.Challenge challenges = 1;
+	required fixed32 context = 2;
+	optional uint32 id = 3;
+	optional uint64 deadline = 4;
+	repeated .bnet.protocol.attribute.Attribute attributes = 5;
+	optional .bnet.protocol.EntityId game_account_id = 6;
+}
+
+message ChallengeResultRequest {
+	optional uint32 id = 1;
+	optional fixed32 type = 2;
+	optional uint32 error_id = 3;
+	optional bytes answer = 4;
+}
+
+message ChallengeExternalRequest {
+	optional string request_token = 1;
+	optional string payload_type = 2;
+	optional bytes payload = 3;
+}
+
+message ChallengeExternalResult {
+	optional string request_token = 1;
+	optional bool passed = 2 [default = true];
+}
+
+service ChallengeService {
+	rpc ChallengePicked (.bnet.protocol.challenge.ChallengePickedRequest) returns (.bnet.protocol.challenge.ChallengePickedResponse);
+	rpc ChallengeAnswered (.bnet.protocol.challenge.ChallengeAnsweredRequest) returns (.bnet.protocol.challenge.ChallengeAnsweredResponse);
+	rpc ChallengeCancelled (.bnet.protocol.challenge.ChallengeCancelledRequest) returns (.bnet.protocol.NoData);
+	rpc SendChallengeToUser (.bnet.protocol.challenge.SendChallengeToUserRequest) returns (.bnet.protocol.challenge.SendChallengeToUserResponse);
+}
+
+service ChallengeNotify {
+	rpc ChallengeUser (.bnet.protocol.challenge.ChallengeUserRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc ChallengeResult (.bnet.protocol.challenge.ChallengeResultRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc OnExternalChallenge (.bnet.protocol.challenge.ChallengeExternalRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc OnExternalChallengeResult (.bnet.protocol.challenge.ChallengeExternalResult) returns (.bnet.protocol.NO_RESPONSE);
+}

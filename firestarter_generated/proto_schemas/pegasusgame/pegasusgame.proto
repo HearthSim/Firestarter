@@ -1,0 +1,363 @@
+syntax = "proto2";
+package pegasusgame;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "pegasusshared/pegasusshared.proto";
+
+// ref: PegasusGame.AllOptions
+message AllOptions {
+	// ref: PegasusGame.AllOptions/Types/PacketID
+	enum PacketID {
+		ID = 14;
+	}
+
+	optional int32 id = 1;
+	repeated Option options = 2;
+}
+
+// ref: PegasusGame.ChooseEntities
+message ChooseEntities {
+	// ref: PegasusGame.ChooseEntities/Types/PacketID
+	enum PacketID {
+		ID = 3;
+	}
+
+	optional int32 id = 1;
+	repeated int32 entities = 2 [packed=true];
+}
+
+// ref: PegasusGame.ChooseOption
+message ChooseOption {
+	// ref: PegasusGame.ChooseOption/Types/PacketID
+	enum PacketID {
+		ID = 2;
+	}
+
+	optional int32 id = 1;
+	optional int32 index = 2;
+	optional int32 target = 3;
+	optional int32 sub_option = 4;
+	optional int32 position = 5;
+	optional int32 old_platform = 6;
+	optional pegasusshared.Platform platform = 7;
+}
+
+// ref: PegasusGame.ClientPacket
+message ClientPacket {
+	// ref: PegasusGame.ClientPacket/Types/PacketID
+	enum PacketID {
+		ID = 6;
+	}
+
+	optional bytes packet = 1;
+}
+
+// ref: PegasusGame.DebugMessage
+message DebugMessage {
+	// ref: PegasusGame.DebugMessage/Types/PacketID
+	enum PacketID {
+		ID = 5;
+	}
+
+	optional string message = 1;
+}
+
+// ref: PegasusGame.Entity
+message Entity {
+	optional int32 id = 1;
+	repeated Tag tags = 2;
+}
+
+// ref: PegasusGame.EntityChoice
+message EntityChoice {
+	// ref: PegasusGame.EntityChoice/Types/PacketID
+	enum PacketID {
+		ID = 17;
+	}
+
+	optional int32 id = 1;
+	optional int32 choice_type = 2;
+	optional bool cancelable = 3;
+	optional int32 count_min = 4;
+	optional int32 count_max = 5;
+	repeated int32 entities = 6 [packed=true];
+	optional int32 source = 7;
+}
+
+// ref: PegasusGame.FinishGameState
+message FinishGameState {
+	// ref: PegasusGame.FinishGameState/Types/PacketID
+	enum PacketID {
+		ID = 8;
+	}
+
+}
+
+// ref: PegasusGame.ForcedEntityChoice
+message ForcedEntityChoice {
+	// ref: PegasusGame.ForcedEntityChoice/Types/PacketID
+	enum PacketID {
+		ID = 13;
+	}
+
+	optional int32 id = 1;
+	repeated int32 entities = 2 [packed=true];
+}
+
+// ref: PegasusGame.GameCanceled
+message GameCanceled {
+	// ref: PegasusGame.GameCanceled/Types/PacketID
+	enum PacketID {
+		ID = 12;
+	}
+
+	// ref: PegasusGame.GameCanceled/Types/Reason
+	enum Reason {
+		OPPONENT_TIMEOUT = 1;
+	}
+
+	optional Reason reason = 1;
+}
+
+// ref: PegasusGame.GameSetup
+message GameSetup {
+	// ref: PegasusGame.GameSetup/Types/PacketID
+	enum PacketID {
+		ID = 16;
+	}
+
+	optional int32 board = 1;
+	optional int32 max_secrets_per_player = 2;
+	optional int32 max_friendly_minions_per_player = 3;
+}
+
+// ref: PegasusGame.GetGameState
+message GetGameState {
+	// ref: PegasusGame.GetGameState/Types/PacketID
+	enum PacketID {
+		ID = 1;
+	}
+
+}
+
+// ref: PegasusGame.GiveUp
+message GiveUp {
+	// ref: PegasusGame.GiveUp/Types/PacketID
+	enum PacketID {
+		ID = 11;
+	}
+
+	optional int32 old_platform = 1;
+	optional pegasusshared.Platform platform = 2;
+}
+
+// ref: PegasusGame.MouseInfo
+message MouseInfo {
+	optional int32 arrow_origin = 1;
+	optional int32 held_card = 2;
+	optional int32 over_card = 3;
+	optional int32 x = 4;
+	optional int32 y = 5;
+}
+
+// ref: PegasusGame.NAckOption
+message NAckOption {
+	// ref: PegasusGame.NAckOption/Types/PacketID
+	enum PacketID {
+		ID = 10;
+	}
+
+	optional int32 id = 1;
+}
+
+// ref: PegasusGame.Notification
+message Notification {
+	// ref: PegasusGame.Notification/Types/PacketID
+	enum PacketID {
+		ID = 21;
+	}
+
+	// ref: PegasusGame.Notification/Types/Type
+	enum Type {
+		IN_HAND_CARD_CAP = 1;
+		MANA_CAP = 2;
+	}
+
+	optional Type type = 1;
+}
+
+// ref: PegasusGame.Option
+message Option {
+	// ref: PegasusGame.Option/Types/Type
+	enum Type {
+		PASS = 1;
+		END_TURN = 2;
+		POWER = 3;
+	}
+
+	optional Type type = 1;
+	optional SubOption main_option = 2;
+	repeated SubOption sub_options = 3;
+}
+
+// ref: PegasusGame.Player
+message Player {
+	optional int32 id = 1;
+	optional pegasusshared.BnetId game_account_id = 2;
+	optional int32 card_back = 3;
+	optional Entity entity = 4;
+}
+
+// ref: PegasusGame.PowerHistory
+message PowerHistory {
+	// ref: PegasusGame.PowerHistory/Types/PacketID
+	enum PacketID {
+		ID = 19;
+	}
+
+	repeated PowerHistoryData list = 1;
+}
+
+// ref: PegasusGame.PowerHistoryCreateGame
+message PowerHistoryCreateGame {
+	optional Entity game_entity = 1;
+	repeated Player players = 2;
+}
+
+// ref: PegasusGame.PowerHistoryData
+message PowerHistoryData {
+	optional PowerHistoryEntity full_entity = 1;
+	optional PowerHistoryEntity show_entity = 2;
+	optional PowerHistoryHide hide_entity = 3;
+	optional PowerHistoryTagChange tag_change = 4;
+	optional PowerHistoryCreateGame create_game = 5;
+	optional PowerHistoryStart power_start = 6;
+	optional PowerHistoryEnd power_end = 7;
+	optional PowerHistoryMetaData meta_data = 8;
+}
+
+// ref: PegasusGame.PowerHistoryEnd
+message PowerHistoryEnd {
+}
+
+// ref: PegasusGame.PowerHistoryEntity
+message PowerHistoryEntity {
+	optional int32 entity = 1;
+	optional string name = 2;
+	repeated Tag tags = 3;
+}
+
+// ref: PegasusGame.PowerHistoryHide
+message PowerHistoryHide {
+	optional int32 entity = 1;
+	optional int32 zone = 2;
+}
+
+// ref: PegasusGame.PowerHistoryMetaData
+message PowerHistoryMetaData {
+	// ref: PegasusGame.PowerHistoryMetaData/Types/MetaType
+	enum MetaType {
+		META_TARGET = 0;
+		META_DAMAGE = 1;
+		META_HEALING = 2;
+	}
+
+	repeated int32 info = 2 [packed=true];
+	optional MetaType meta_type = 3;
+	optional int32 data = 4;
+}
+
+// ref: PegasusGame.PowerHistoryStart
+message PowerHistoryStart {
+	// ref: PegasusGame.PowerHistoryStart/Types/Type
+	enum Type {
+		ATTACK = 1;
+		CONTINUOUS = 2;
+		POWER = 3;
+		SCRIPT = 4;
+		TRIGGER = 5;
+		DEATHS = 6;
+		PLAY = 7;
+		FATIGUE = 8;
+	}
+
+	optional Type type = 1;
+	optional int32 index = 2;
+	optional int32 source = 3;
+	optional int32 target = 4;
+}
+
+// ref: PegasusGame.PowerHistoryTagChange
+message PowerHistoryTagChange {
+	optional int32 entity = 1;
+	optional int32 tag = 2;
+	optional int32 value = 3;
+}
+
+// ref: PegasusGame.Precast
+message Precast {
+	// ref: PegasusGame.Precast/Types/PacketID
+	enum PacketID {
+		ID = 4;
+	}
+
+	optional int32 entity = 1;
+}
+
+// ref: PegasusGame.PreLoad
+message PreLoad {
+	// ref: PegasusGame.PreLoad/Types/PacketID
+	enum PacketID {
+		ID = 18;
+	}
+
+	repeated int32 cards = 1 [packed=true];
+}
+
+// ref: PegasusGame.StartGameState
+message StartGameState {
+	// ref: PegasusGame.StartGameState/Types/PacketID
+	enum PacketID {
+		ID = 7;
+	}
+
+	optional Entity game_entity = 1;
+	repeated Player players = 2;
+}
+
+// ref: PegasusGame.SubOption
+message SubOption {
+	optional int32 id = 1;
+	repeated int32 targets = 3 [packed=true];
+}
+
+// ref: PegasusGame.Tag
+message Tag {
+	optional int32 name = 1;
+	optional int32 value = 2;
+}
+
+// ref: PegasusGame.TurnTimer
+message TurnTimer {
+	// ref: PegasusGame.TurnTimer/Types/PacketID
+	enum PacketID {
+		ID = 9;
+	}
+
+	optional int32 seconds = 1;
+	optional int32 turn = 2;
+	optional bool show = 3;
+}
+
+// ref: PegasusGame.UserUI
+message UserUI {
+	// ref: PegasusGame.UserUI/Types/PacketID
+	enum PacketID {
+		ID = 15;
+	}
+
+	optional MouseInfo mouse_info = 1;
+	optional int32 emote = 2;
+}
+

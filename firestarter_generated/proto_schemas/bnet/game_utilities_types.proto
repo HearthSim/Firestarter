@@ -1,0 +1,14 @@
+syntax = "proto2";
+package bnet.protocol.game_utilities;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/attribute.proto";
+import "bnet/entity.proto";
+
+
+message PlayerVariables {
+	required .bnet.protocol.Identity identity = 1;
+	optional double rating = 2;
+	repeated .bnet.protocol.attribute.Attribute attribute = 3;
+}

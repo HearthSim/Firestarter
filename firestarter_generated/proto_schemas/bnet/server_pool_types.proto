@@ -1,0 +1,15 @@
+syntax = "proto2";
+package bnet.protocol.server_pool;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+
+
+message GetLoadRequest {
+}
+
+message ServerState {
+	optional float DEPRECATED_current_load = 1 [default = 1];
+	optional uint32 DEPRECATED_game_count = 2 [default = 0];
+	optional uint32 DEPRECATED_player_count = 3 [default = 0];
+}

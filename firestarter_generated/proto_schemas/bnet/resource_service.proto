@@ -1,0 +1,19 @@
+syntax = "proto2";
+package bnet.protocol.resources;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/content_handle.proto";
+import "bnet/rpc.proto";
+import "bnet/global_extensions/method_options.proto";
+
+
+message ContentHandleRequest {
+	required fixed32 program_id = 1;
+	required fixed32 stream_id = 2;
+	optional fixed32 locale = 3 [default = 1701729619];
+}
+
+service Resources {
+	rpc GetContentHandle (.bnet.protocol.resources.ContentHandleRequest) returns (.bnet.protocol.ContentHandle);
+}

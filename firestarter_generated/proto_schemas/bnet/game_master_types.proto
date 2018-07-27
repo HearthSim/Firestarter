@@ -1,0 +1,63 @@
+syntax = "proto2";
+package bnet.protocol.game_master;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/attribute.proto";
+import "bnet/entity.proto";
+
+
+message Player {
+	optional .bnet.protocol.Identity identity = 1;
+	repeated .bnet.protocol.attribute.Attribute attribute = 2;
+	optional double rating = 3;
+}
+
+message ConnectInfo {
+	required .bnet.protocol.EntityId member_id = 1;
+	required string host = 2;
+	required int32 port = 3;
+	optional bytes token = 4;
+	repeated .bnet.protocol.attribute.Attribute attribute = 5;
+}
+
+message GameStatsBucket {
+	optional float bucket_min = 1 [default = 0];
+	optional float bucket_max = 2 [default = 4.2949673e+009];
+	optional uint32 wait_milliseconds = 3 [default = 0];
+	optional uint32 games_per_hour = 4 [default = 0];
+	optional uint32 active_games = 5 [default = 0];
+	optional uint32 active_players = 6 [default = 0];
+	optional uint32 forming_games = 7 [default = 0];
+	optional uint32 waiting_players = 8 [default = 0];
+	optional uint32 open_joinable_games = 9 [default = 0];
+	optional uint32 players_in_open_joinable_games = 10 [default = 0];
+	optional uint32 open_games_total = 11 [default = 0];
+	optional uint32 players_in_open_games_total = 12 [default = 0];
+}
+
+message GameFactoryDescription {
+	required fixed64 id = 1;
+	optional string name = 2;
+	repeated .bnet.protocol.attribute.Attribute attribute = 3;
+	repeated .bnet.protocol.game_master.GameStatsBucket stats_bucket = 4;
+	optional fixed64 unseeded_id = 5 [default = 0];
+	optional bool allow_queueing = 6 [default = true];
+	optional bool requires_player_rating = 7 [default = false];
+}
+
+message GameHandle {
+	required fixed64 factory_id = 1;
+	required .bnet.protocol.EntityId game_id = 2;
+}
+
+message CancelGameEntryRequest {
+	required fixed64 request_id = 1;
+	optional fixed64 factory_id = 2;
+	repeated .bnet.protocol.game_master.Player player = 3;
+	optional .bnet.protocol.EntityId cancel_request_initiator = 4;
+}
+
+message CancelGameEntryResponse {
+	optional bool entire_game_entry_cancelled = 1;
+}

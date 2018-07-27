@@ -1,0 +1,21 @@
+syntax = "proto2";
+package bnet.protocol.authentication;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/rpc.proto";
+
+
+message WebSSOClientProof {
+	optional bytes sso_id = 1;
+	optional bytes client_salt = 3;
+	optional bytes client_proof = 4;
+	optional bytes server_signature_challenge = 5;
+}
+
+message WebSSOServerProof {
+	optional bytes server_verify_salt = 1;
+	optional bytes server_proof = 2;
+	optional bytes server_signature_proof = 3;
+	optional bytes server_signature_random = 4;
+}

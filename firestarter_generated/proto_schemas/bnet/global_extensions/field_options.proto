@@ -1,0 +1,11 @@
+syntax = "proto2";
+package bnet.protocol;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+// import "google/protobuf/descriptor.proto";
+
+enum LogOption {
+	HIDDEN = 1;
+	HEX = 2;
+}

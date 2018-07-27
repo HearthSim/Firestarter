@@ -1,0 +1,23 @@
+[package]
+name = "firestarter-generated"
+version = "0.1.0"
+authors = ["Bert Proesmans <bproesmans@hotmail.com>"]
+# Location of build script, relative to this conf file (crate root)
+build = "pre_build.rs"
+autoexamples = false
+autobenches = false
+autobins = false
+autotests = false
+
+[lib]
+name = "firestarter_generated"
+bench = false
+
+[dependencies]
+prost = ">=0.4.0, <0.5.0"
+prost-derive = ">=0.4.0, <0.5.0"
+bytes = ">=0.4.0, <0.5.0"
+
+[build-dependencies]
+glob = ">=0.2.0, <0.3.0"
+prost-build = ">=0.4.0, <0.5.0"

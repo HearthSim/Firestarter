@@ -26,6 +26,9 @@ name = "vanilla-server"
 path = "src/bin/vanilla_server.rs"
 
 [dependencies]
+# In-tree dependancies
+firestarter-generated = {path = "../firestarter_generated"}
+
 # Syntax improving libraries
 typed-builder = "=0.1.1"
 

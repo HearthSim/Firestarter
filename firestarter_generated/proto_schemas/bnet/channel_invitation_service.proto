@@ -1,0 +1,147 @@
+syntax = "proto2";
+package bnet.protocol.channel_invitation;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/entity.proto";
+import "bnet/invitation_types.proto";
+import "bnet/rpc.proto";
+import "bnet/global_extensions/method_options.proto";
+import "bnet/channel_service.proto";
+import "bnet/channel_invitation_types.proto";
+import "bnet/channel_types.proto";
+
+
+message AcceptInvitationRequest {
+	optional .bnet.protocol.EntityId agent_id = 1;
+	optional .bnet.protocol.channel.MemberState member_state = 2;
+	required fixed64 invitation_id = 3;
+	required uint64 object_id = 4;
+	optional .bnet.protocol.EntityId channel_id = 5;
+	optional uint32 service_type = 6;
+	optional bool local_subscriber = 7 [default = true];
+}
+
+message AcceptInvitationResponse {
+	required uint64 object_id = 1;
+}
+
+message SubscribeRequest {
+	optional .bnet.protocol.EntityId agent_id = 1;
+	required uint64 object_id = 2;
+}
+
+message SubscribeResponse {
+	repeated .bnet.protocol.channel_invitation.InvitationCollection deprecated_collection = 1;
+	repeated .bnet.protocol.invitation.Invitation received_invitation = 2;
+}
+
+message UnsubscribeRequest {
+	optional .bnet.protocol.EntityId agent_id = 1;
+}
+
+message SuggestInvitationRequest {
+	optional .bnet.protocol.EntityId agent_id = 1;
+	required .bnet.protocol.EntityId channel_id = 2;
+	required .bnet.protocol.EntityId target_id = 3;
+	optional .bnet.protocol.EntityId approval_id = 4;
+	optional .bnet.protocol.Identity agent_identity = 5;
+	optional .bnet.protocol.AccountInfo agent_info = 6;
+}
+
+message RevokeInvitationRequest {
+	optional .bnet.protocol.EntityId agent_id = 1;
+	optional .bnet.protocol.EntityId target_id = 2;
+	required fixed64 invitation_id = 3;
+	required .bnet.protocol.EntityId channel_id = 4;
+}
+
+message ChannelCountDescription {
+	required uint32 service_type = 1;
+	required fixed32 program = 2;
+	optional string channel_type = 3 [default = "default"];
+	optional .bnet.protocol.EntityId channel_id = 4;
+}
+
+message IncrementChannelCountRequest {
+	required .bnet.protocol.EntityId agent_id = 1;
+	required .bnet.protocol.channel_invitation.ChannelCountDescription description = 2;
+}
+
+message IncrementChannelCountResponse {
+	optional uint64 reservation_token = 1;
+}
+
+message DecrementChannelCountRequest {
+	required .bnet.protocol.EntityId agent_id = 1;
+	optional .bnet.protocol.EntityId channel_id = 2;
+	optional uint64 reservation_token = 3;
+}
+
+message UpdateChannelCountRequest {
+	required .bnet.protocol.EntityId agent_id = 1;
+	optional uint64 reservation_token = 2;
+	required .bnet.protocol.EntityId channel_id = 3;
+}
+
+message ListChannelCountRequest {
+	required .bnet.protocol.EntityId member_id = 1;
+	required uint32 service_type = 2;
+	optional fixed32 program = 3;
+}
+
+message ChannelCount {
+	optional .bnet.protocol.EntityId channel_id = 1;
+	optional string channel_type = 2 [default = "default"];
+}
+
+message ListChannelCountResponse {
+	repeated .bnet.protocol.channel_invitation.ChannelCount channel = 1;
+}
+
+message ChannelCountBatch {
+	required .bnet.protocol.EntityId agent_id = 1;
+	repeated .bnet.protocol.channel_invitation.ChannelCountDescription descriptions = 2;
+}
+
+message ChannelCountSyncRequest {
+	repeated .bnet.protocol.channel_invitation.ChannelCountBatch batches = 1;
+}
+
+message ChannelCountSyncResponse {
+	repeated uint64 results = 1;
+}
+
+message InvitationAddedNotification {
+	required .bnet.protocol.invitation.Invitation invitation = 1;
+}
+
+message InvitationRemovedNotification {
+	required .bnet.protocol.invitation.Invitation invitation = 1;
+	optional uint32 reason = 2;
+}
+
+message SuggestionAddedNotification {
+	required .bnet.protocol.invitation.Suggestion suggestion = 1;
+}
+
+service ChannelInvitationService {
+	rpc Subscribe (.bnet.protocol.channel_invitation.SubscribeRequest) returns (.bnet.protocol.channel_invitation.SubscribeResponse);
+	rpc Unsubscribe (.bnet.protocol.channel_invitation.UnsubscribeRequest) returns (.bnet.protocol.NoData);
+	rpc SendInvitation (.bnet.protocol.invitation.SendInvitationRequest) returns (.bnet.protocol.invitation.SendInvitationResponse);
+	rpc AcceptInvitation (.bnet.protocol.channel_invitation.AcceptInvitationRequest) returns (.bnet.protocol.channel_invitation.AcceptInvitationResponse);
+	rpc DeclineInvitation (.bnet.protocol.invitation.GenericRequest) returns (.bnet.protocol.NoData);
+	rpc RevokeInvitation (.bnet.protocol.channel_invitation.RevokeInvitationRequest) returns (.bnet.protocol.NoData);
+	rpc SuggestInvitation (.bnet.protocol.channel_invitation.SuggestInvitationRequest) returns (.bnet.protocol.NoData);
+	rpc IncrementChannelCount (.bnet.protocol.channel_invitation.IncrementChannelCountRequest) returns (.bnet.protocol.channel_invitation.IncrementChannelCountResponse);
+	rpc DecrementChannelCount (.bnet.protocol.channel_invitation.DecrementChannelCountRequest) returns (.bnet.protocol.NoData);
+	rpc UpdateChannelCount (.bnet.protocol.channel_invitation.UpdateChannelCountRequest) returns (.bnet.protocol.NoData);
+	rpc ListChannelCount (.bnet.protocol.channel_invitation.ListChannelCountRequest) returns (.bnet.protocol.channel_invitation.ListChannelCountResponse);
+	rpc ChannelCountSync (.bnet.protocol.channel_invitation.ChannelCountSyncRequest) returns (.bnet.protocol.channel_invitation.ChannelCountSyncResponse);
+}
+
+service ChannelInvitationNotify {
+	rpc NotifyReceivedInvitationAdded (.bnet.protocol.channel_invitation.InvitationAddedNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc NotifyReceivedInvitationRemoved (.bnet.protocol.channel_invitation.InvitationRemovedNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc NotifyReceivedSuggestionAdded (.bnet.protocol.channel_invitation.SuggestionAddedNotification) returns (.bnet.protocol.NO_RESPONSE);
+}

@@ -1,0 +1,235 @@
+syntax = "proto2";
+package bnet.protocol.account;
+
+// Proto extractor compiled unit - https://github.com/HearthSim/proto-extractor
+
+import "bnet/rpc.proto";
+import "bnet/global_extensions/method_options.proto";
+import "bnet/entity.proto";
+import "bnet/account_types.proto";
+
+
+message GetAccountRequest {
+	optional .bnet.protocol.account.AccountReference ref = 1;
+	optional bool fetch_all = 10 [default = false];
+	optional bool fetch_blob = 11 [default = false];
+	optional bool fetch_id = 12 [default = false];
+	optional bool fetch_email = 13 [default = false];
+	optional bool fetch_battle_tag = 14 [default = false];
+	optional bool fetch_full_name = 15 [default = false];
+	optional bool fetch_links = 16 [default = false];
+	optional bool fetch_parental_controls = 17 [default = false];
+}
+
+message GetAccountResponse {
+	optional .bnet.protocol.account.AccountBlob blob = 11;
+	optional .bnet.protocol.account.AccountId id = 12;
+	repeated string email = 13;
+	optional string battle_tag = 14;
+	optional string full_name = 15;
+	repeated .bnet.protocol.account.GameAccountLink links = 16;
+	optional .bnet.protocol.account.ParentalControlInfo parental_control_info = 17;
+}
+
+message CreateGameAccountRequest {
+	optional .bnet.protocol.account.AccountId account = 1;
+	optional uint32 region = 2;
+	optional fixed32 program = 3;
+	optional uint32 realm_permissions = 4 [default = 1];
+}
+
+message CacheExpireRequest {
+	repeated .bnet.protocol.account.AccountId account = 1;
+	repeated .bnet.protocol.account.GameAccountHandle game_account = 2;
+	repeated string email = 3;
+}
+
+message CredentialUpdateRequest {
+	required .bnet.protocol.account.AccountId account = 1;
+	repeated .bnet.protocol.account.AccountCredential old_credentials = 2;
+	repeated .bnet.protocol.account.AccountCredential new_credentials = 3;
+	optional uint32 region = 4;
+}
+
+message CredentialUpdateResponse {
+}
+
+message FlagUpdateRequest {
+	required .bnet.protocol.account.AccountId account = 1;
+	optional uint32 region = 2;
+	required uint64 flag = 3;
+	required bool active = 4;
+}
+
+message FlagUpdateResponse {
+}
+
+message GetWalletListRequest {
+	required .bnet.protocol.account.AccountId account_id = 1;
+	optional bool refresh = 2 [default = false];
+}
+
+message GetWalletListResponse {
+	repeated .bnet.protocol.account.Wallet wallets = 1;
+}
+
+message GetEBalanceRequest {
+	required .bnet.protocol.account.AccountId account_id = 1;
+	required string currency = 2;
+	optional uint32 currency_home_region = 3;
+}
+
+message GetEBalanceResponse {
+	optional string balance = 1;
+}
+
+message GetEBalanceRestrictionsRequest {
+	optional uint32 currency_home_region = 1;
+}
+
+message GetEBalanceRestrictionsResponse {
+	repeated .bnet.protocol.account.CurrencyRestriction currency_restrictions = 1;
+}
+
+message SubscriptionUpdateRequest {
+	repeated .bnet.protocol.account.SubscriberReference ref = 2;
+}
+
+message SubscriptionUpdateResponse {
+	repeated .bnet.protocol.account.SubscriberReference ref = 1;
+}
+
+message IsIgrAddressRequest {
+	optional string client_address = 1;
+	optional uint32 region = 2;
+}
+
+message AccountServiceRegion {
+	required uint32 id = 1;
+	required string shard = 2;
+}
+
+message AccountServiceConfig {
+	repeated .bnet.protocol.account.AccountServiceRegion region = 1;
+}
+
+message GetAccountStateRequest {
+	optional .bnet.protocol.EntityId entity_id = 1;
+	optional uint32 program = 2;
+	optional uint32 region = 3;
+	optional .bnet.protocol.account.AccountFieldOptions options = 10;
+	optional .bnet.protocol.account.AccountFieldTags tags = 11;
+}
+
+message GetAccountStateResponse {
+	optional .bnet.protocol.account.AccountState state = 1;
+	optional .bnet.protocol.account.AccountFieldTags tags = 2;
+}
+
+message GetGameAccountStateRequest {
+	optional .bnet.protocol.EntityId account_id = 1;
+	optional .bnet.protocol.EntityId game_account_id = 2;
+	optional .bnet.protocol.account.GameAccountFieldOptions options = 10;
+	optional .bnet.protocol.account.GameAccountFieldTags tags = 11;
+}
+
+message GetGameAccountStateResponse {
+	optional .bnet.protocol.account.GameAccountState state = 1;
+	optional .bnet.protocol.account.GameAccountFieldTags tags = 2;
+}
+
+message GetLicensesRequest {
+	optional .bnet.protocol.EntityId target_id = 1;
+	optional bool get_account_licenses = 2;
+	optional bool get_game_account_licenses = 3;
+	optional bool get_dynamic_account_licenses = 4;
+	optional fixed32 program_id = 5;
+	optional bool exclude_unknown_program = 6 [default = false];
+}
+
+message GetLicensesResponse {
+	repeated .bnet.protocol.account.AccountLicense licenses = 1;
+}
+
+message GetGameSessionInfoRequest {
+	optional .bnet.protocol.EntityId entity_id = 1;
+}
+
+message GetGameSessionInfoResponse {
+	optional .bnet.protocol.account.GameSessionInfo session_info = 2;
+}
+
+message GetGameTimeRemainingInfoRequest {
+	optional .bnet.protocol.EntityId game_account_id = 1;
+	optional .bnet.protocol.EntityId account_id = 2;
+}
+
+message GetGameTimeRemainingInfoResponse {
+	optional .bnet.protocol.account.GameTimeRemainingInfo game_time_remaining_info = 1;
+}
+
+message GetCAISInfoRequest {
+	optional .bnet.protocol.EntityId entity_id = 1;
+}
+
+message GetCAISInfoResponse {
+	optional .bnet.protocol.account.CAIS cais_info = 1;
+}
+
+message ForwardCacheExpireRequest {
+	optional .bnet.protocol.EntityId entity_id = 1;
+}
+
+message AccountStateNotification {
+	optional .bnet.protocol.account.AccountState state = 1;
+	optional uint64 subscriber_id = 2;
+	optional .bnet.protocol.account.AccountFieldTags account_tags = 3;
+	optional bool subscription_completed = 4;
+}
+
+message GameAccountStateNotification {
+	optional .bnet.protocol.account.GameAccountState state = 1;
+	optional uint64 subscriber_id = 2;
+	optional .bnet.protocol.account.GameAccountFieldTags game_account_tags = 3;
+	optional bool subscription_completed = 4;
+}
+
+message GameAccountNotification {
+	repeated .bnet.protocol.account.GameAccountList region_delta = 1;
+	optional uint64 subscriber_id = 2;
+	optional .bnet.protocol.account.AccountFieldTags account_tags = 3;
+}
+
+message GameAccountSessionNotification {
+	optional .bnet.protocol.account.GameAccountHandle game_account = 1;
+	optional .bnet.protocol.account.GameSessionUpdateInfo session_info = 2;
+}
+
+service AccountService {
+	rpc GetGameAccount (.bnet.protocol.account.GameAccountHandle) returns (.bnet.protocol.account.GameAccountBlob);
+	rpc GetAccount (.bnet.protocol.account.GetAccountRequest) returns (.bnet.protocol.account.GetAccountResponse);
+	rpc CreateGameAccount (.bnet.protocol.account.CreateGameAccountRequest) returns (.bnet.protocol.account.GameAccountHandle);
+	rpc IsIgrAddress (.bnet.protocol.account.IsIgrAddressRequest) returns (.bnet.protocol.NoData);
+	rpc CacheExpire (.bnet.protocol.account.CacheExpireRequest) returns (.bnet.protocol.NO_RESPONSE);
+	rpc CredentialUpdate (.bnet.protocol.account.CredentialUpdateRequest) returns (.bnet.protocol.account.CredentialUpdateResponse);
+	rpc FlagUpdate (.bnet.protocol.account.FlagUpdateRequest) returns (.bnet.protocol.account.FlagUpdateResponse);
+	rpc GetWalletList (.bnet.protocol.account.GetWalletListRequest) returns (.bnet.protocol.account.GetWalletListResponse);
+	rpc GetEBalance (.bnet.protocol.account.GetEBalanceRequest) returns (.bnet.protocol.account.GetEBalanceResponse);
+	rpc Subscribe (.bnet.protocol.account.SubscriptionUpdateRequest) returns (.bnet.protocol.account.SubscriptionUpdateResponse);
+	rpc Unsubscribe (.bnet.protocol.account.SubscriptionUpdateRequest) returns (.bnet.protocol.NoData);
+	rpc GetEBalanceRestrictions (.bnet.protocol.account.GetEBalanceRestrictionsRequest) returns (.bnet.protocol.account.GetEBalanceRestrictionsResponse);
+	rpc GetAccountState (.bnet.protocol.account.GetAccountStateRequest) returns (.bnet.protocol.account.GetAccountStateResponse);
+	rpc GetGameAccountState (.bnet.protocol.account.GetGameAccountStateRequest) returns (.bnet.protocol.account.GetGameAccountStateResponse);
+	rpc GetLicenses (.bnet.protocol.account.GetLicensesRequest) returns (.bnet.protocol.account.GetLicensesResponse);
+	rpc GetGameTimeRemainingInfo (.bnet.protocol.account.GetGameTimeRemainingInfoRequest) returns (.bnet.protocol.account.GetGameTimeRemainingInfoResponse);
+	rpc GetGameSessionInfo (.bnet.protocol.account.GetGameSessionInfoRequest) returns (.bnet.protocol.account.GetGameSessionInfoResponse);
+	rpc GetCAISInfo (.bnet.protocol.account.GetCAISInfoRequest) returns (.bnet.protocol.account.GetCAISInfoResponse);
+	rpc ForwardCacheExpire (.bnet.protocol.account.ForwardCacheExpireRequest) returns (.bnet.protocol.NoData);
+}
+
+service AccountNotify {
+	rpc NotifyAccountStateUpdated (.bnet.protocol.account.AccountStateNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc NotifyGameAccountStateUpdated (.bnet.protocol.account.GameAccountStateNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc NotifyGameAccountsUpdated (.bnet.protocol.account.GameAccountNotification) returns (.bnet.protocol.NO_RESPONSE);
+	rpc NotifyGameSessionUpdated (.bnet.protocol.account.GameAccountSessionNotification) returns (.bnet.protocol.NO_RESPONSE);
+}
