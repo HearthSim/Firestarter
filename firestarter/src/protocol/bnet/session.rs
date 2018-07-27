@@ -38,6 +38,16 @@ impl LightWeightSession {
         }
     }
 
+    /// Retrieve the address endpoint of the client.
+    pub fn address(&self) -> &SocketAddr {
+        &self.address
+    }
+
+    /// Retrieve a specialized logger for this session.
+    pub fn logger(&self) -> &slog::Logger {
+        &self.logger
+    }
+
     fn reinstall_codec(&mut self, codec: Framed<TcpStream, BNetCodec>) {
         self.codec = Some(codec);
     }
@@ -105,6 +115,7 @@ impl Future for ClientSession {
 
 mod error {
     use protocol::bnet::frame::CodecError;
+    use rpc::system::RPCError;
 
     #[derive(Debug, Fail)]
     /// Error type related to a client session.
@@ -124,12 +135,23 @@ mod error {
         #[fail(display = "{}", _0)]
         /// Session failure due to malformed data.
         Codec(#[cause] CodecError),
+
+        #[fail(display = "{}", _0)]
+        /// Session failure due to a service error.
+        RPC(#[cause] RPCError),
     }
 
-    // Implementation necessary as per constraint from Encoder::Error + Decoder::Error
+    // Usability improvement
     impl From<CodecError> for SessionError {
         fn from(x: CodecError) -> Self {
             SessionError::Codec(x)
+        }
+    }
+
+    // Usability improvement
+    impl From<RPCError> for SessionError {
+        fn from(x: RPCError) -> Self {
+            SessionError::RPC(x)
         }
     }
 }

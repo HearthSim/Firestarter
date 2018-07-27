@@ -33,6 +33,7 @@ pub mod log;
 pub mod protocol;
 pub mod rpc;
 pub mod server;
+pub mod service;
 
 pub use self::error::*;
 

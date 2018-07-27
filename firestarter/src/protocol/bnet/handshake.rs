@@ -3,7 +3,6 @@
 //! Clients must succesfully complete the handshake before the server allocates memory
 //! for a new session.
 
-use futures::future::{lazy, result, FutureResult};
 use futures::prelude::*;
 use slog;
 use std::io;
@@ -68,7 +67,15 @@ pub fn handle_client(
 fn handshake_operation(
     session: LightWeightSession,
 ) -> impl Future<Item = LightWeightSession, Error = HandshakeError> {
-    lazy(move || -> FutureResult<LightWeightSession, HandshakeError> { result(Ok(session)) })
+    use service::bnet::connection_service::ConnectionService;
+
+    session
+        .read_request()
+        .and_then(|(service, request)| {
+            ConnectionService::connect_direct(service, request).map_err(Into::into)
+        })
+        .and_then(|(service, response)| service.send_response(response))
+        .inspect(|session| trace!(session.logger(), "Handshake was successful"))
 }
 
 mod error {
