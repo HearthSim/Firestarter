@@ -19,11 +19,14 @@ extern crate error_chain;
 
 extern crate bytes;
 extern crate futures;
+extern crate prost;
 extern crate slog_stdlog;
 extern crate tokio;
 extern crate tokio_codec;
 extern crate tokio_executor;
 extern crate tokio_tcp;
+
+extern crate firestarter_generated;
 
 pub mod log;
 pub mod protocol;
