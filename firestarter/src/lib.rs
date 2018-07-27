@@ -16,8 +16,13 @@ extern crate slog;
 extern crate failure;
 #[macro_use]
 extern crate error_chain;
+#[macro_use]
+extern crate lazy_static;
+#[macro_use]
+extern crate maplit;
 
 extern crate bytes;
+extern crate chrono;
 extern crate futures;
 extern crate prost;
 extern crate slog_stdlog;

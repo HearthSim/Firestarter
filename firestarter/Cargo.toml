@@ -31,6 +31,8 @@ firestarter-generated = {path = "../firestarter_generated"}
 
 # Syntax improving libraries
 typed-builder = "=0.1.1"
+lazy_static = "=1.0.2"
+maplit = "=1.0.1"
 
 # Logging infrastructure
 slog = ">=2.3.2, <2.4.0"
@@ -51,6 +53,7 @@ error-chain = ">=0.12.0, <0.13.0"
 # General
 prost = ">=0.4.0, <0.5.0"
 bytes = ">=0.4.0, <0.5.0"
+chrono = ">=0.4.4, <0.5.0"
 
 
 [features]

@@ -43,4 +43,18 @@ mod error {
         /// Failure to encode a proto message into a packet payload.
         ProtoEncode(#[cause] prost::EncodeError),
     }
+
+    // Usability improvement
+    impl From<prost::DecodeError> for RPCError {
+        fn from(x: prost::DecodeError) -> Self {
+            RPCError::ProtoDecode(x)
+        }
+    }
+
+    // Usability improvement
+    impl From<prost::EncodeError> for RPCError {
+        fn from(x: prost::EncodeError) -> Self {
+            RPCError::ProtoEncode(x)
+        }
+    }
 }
