@@ -111,9 +111,14 @@ impl LobbyServer {
         let task = listener
             .incoming()
             .for_each(move |client| {
-                let client_task =
+                let task_build_result =
                     bnet::handshake::handle_client(client, shared.clone(), logger.clone());
-                executor::spawn(client_task);
+
+                match task_build_result {
+                    Ok(task) => executor::spawn(task),
+                    Err(e) => info!(logger, "Handshake task creation failed"; "error" => ?e),
+                };
+
                 Ok(())
             })
             .map_err(move |e| error!(err_logger, "Server loop ended with error!"; "error" => ?e));
