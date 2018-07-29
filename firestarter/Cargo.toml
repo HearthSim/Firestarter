@@ -59,6 +59,7 @@ prost = ">=0.4.0, <0.5.0"
 bytes = ">=0.4.0, <0.5.0"
 chrono = ">=0.4.4, <0.5.0"
 dotenv = {version = "=0.13.0", optional = true}
+frunk = "0.2.0"
 
 [features]
 # All required features for succesfully building and running

@@ -20,6 +20,8 @@ extern crate error_chain;
 extern crate lazy_static;
 #[macro_use]
 extern crate maplit;
+#[macro_use]
+extern crate frunk;
 
 extern crate bytes;
 extern crate chrono;
@@ -34,6 +36,7 @@ extern crate tokio_timer;
 
 extern crate firestarter_generated;
 
+pub mod hlist_extension;
 pub mod log;
 pub mod protocol;
 pub mod rpc;

@@ -2,6 +2,9 @@
 
 pub use self::error::*;
 
+/// TODO
+pub trait RPCService {}
+
 mod error {
     use prost;
 
