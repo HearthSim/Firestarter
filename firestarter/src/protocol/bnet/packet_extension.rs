@@ -3,7 +3,9 @@
 use bytes::Bytes;
 
 use protocol::bnet::frame::BNetPacket;
-use rpc::transport::{Request, Response};
+use rpc::transport::{RPCPacket, Request, Response};
+
+impl RPCPacket for BNetPacket {}
 
 impl BNetPacket {
     /// Try to parse a [`Request`] from this packet.
@@ -19,7 +21,7 @@ impl BNetPacket {
 
 impl Response<BNetPacket> {
     /// Build a packet which is a direct [`Response`] to the mentioned [`Request`].
-    pub fn from_request(request: Request<BNetPacket>, body: Bytes) -> Self {
+    pub fn from_request(request: Request<BNetPacket>, body: Option<Bytes>) -> Self {
         unimplemented!()
     }
 }

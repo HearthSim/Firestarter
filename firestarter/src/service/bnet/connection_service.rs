@@ -1,14 +1,14 @@
 //! Service handling RPC requests/responses that manipulate the connection between
 //! client and server.
 
-use bytes::BytesMut;
-use futures::future::lazy;
+use bytes::{Bytes, BytesMut};
+use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
 use prost::Message;
 
 use protocol::bnet::frame::BNetPacket;
 use protocol::bnet::session::LightWeightSession;
-use rpc::system::RPCError;
+use rpc::system::{RPCError, RPCObject, RPCService, ServiceHash};
 use rpc::transport::{Request, Response};
 
 #[derive(Debug, Default)]
@@ -32,6 +32,60 @@ pub enum Methods {
     RequestDisconnect = 7,
 }
 
+impl RPCService for ConnectionService {
+    type Method = Methods;
+    type Error = RPCError;
+
+    fn get_hash() -> ServiceHash {
+        ServiceHash::from_name(Self::get_name())
+    }
+
+    fn get_name() -> &'static str {
+        "bnet.protocol.connection.ConnectionService"
+    }
+
+    fn get_methods() -> &'static [(&'static str, &'static Methods)] {
+        &[
+            ("Connect", &Self::METHOD_CONNECT),
+            ("Bind", &Self::METHOD_BIND),
+            ("Echo", &Self::METHOD_ECHO),
+            ("ForceDisconnect", &Self::METHOD_FORCE_DISCONNECT),
+            ("KeepAlive", &Self::METHOD_KEEP_ALIVE),
+            ("Encrypt", &Self::METHOD_ENCRYPT),
+            ("RequestDisconnect", &Self::METHOD_REQUEST_DISCONNECT),
+        ]
+    }
+}
+
+impl RPCObject for ConnectionService {
+    type Packet = BNetPacket;
+    type Future = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
+
+    fn recognize(packet: &Request<Self::Packet>) -> Result<&'static Self::Method, RPCError> {
+        unimplemented!()
+    }
+
+    fn call(
+        &mut self,
+        method: &'static Self::Method,
+        packet: &Request<BNetPacket>,
+    ) -> Self::Future {
+        match method {
+            Methods::Connect => {}
+            Methods::Bind => {}
+            Methods::Echo => {}
+            Methods::ForceDisconnect => {}
+            Methods::KeepAlive => {}
+            Methods::Encrypt => {}
+            Methods::RequestDisconnect => {}
+        };
+
+        Box::new(lazy(|| -> FutureResult<Option<Bytes>, RPCError> {
+            unimplemented!()
+        }))
+    }
+}
+
 impl ConnectionService {
     // TODO: Replace with general Service-like approach.
     const SERVICE_NAME: &'static str = "ConnectionService";
@@ -50,12 +104,20 @@ impl ConnectionService {
     pub const METHOD_ENCRYPT: Methods = Methods::Encrypt;
     /// See [`Methods::RequestDisconnect`]
     pub const METHOD_REQUEST_DISCONNECT: Methods = Methods::RequestDisconnect;
+
+    fn connect_operation(
+        &mut self,
+        packet: Request<BNetPacket>,
+    ) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
+        lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
+    }
 }
 
 impl ConnectionService {
     // Validates if the provided request is ACTUALLY a ConnectRequest
-    fn is_connect_request(packet: &Request<BNetPacket>) -> Result<(), RPCError> {
-        let ref header = packet.as_ref().into_inner().header();
+    fn is_connect_request<'a>(packet: &'a Request<BNetPacket>) -> Result<(), RPCError> {
+        let ref packet_data = packet.as_ref().unwrap();
+        let header = packet_data.header();
         let method = header.method_id.ok_or(RPCError::UnknownRequest {
             service_name: Self::SERVICE_NAME,
         })?;
@@ -72,10 +134,10 @@ impl ConnectionService {
     /// Handles a direct connect request without going through routing and service handling.
     ///
     /// This method can be used to directly handshake with a client, without side-effects.
-    pub fn connect_direct(
+    pub fn connect_direct<'a>(
         session: LightWeightSession,
-        request: Request<BNetPacket>,
-    ) -> impl Future<Item = (LightWeightSession, Response<BNetPacket>), Error = RPCError> {
+        request: &'a Request<BNetPacket>,
+    ) -> impl Future<Item = (LightWeightSession, Option<Bytes>), Error = RPCError> {
         use chrono::Local;
         use firestarter_generated::proto::bnet::protocol::connection::{
             BindRequest, BindResponse, ConnectRequest, ConnectResponse,
@@ -83,12 +145,15 @@ impl ConnectionService {
         use firestarter_generated::proto::bnet::protocol::ProcessId;
         use service::bnet::service_info::{SERVICES_EXPORTED_BINDING, SERVICES_IMPORTED_BINDING};
 
+        // 'static values are created from borrows. These satisfy the closure requirement when moved
+        // into them.
+        let is_valid = Self::is_connect_request(request);
+        // Note: It's safe to unwrap because Request<> only has one variant at the moment!
+        let packet_body = request.as_ref().unwrap().body().clone();
+
         lazy(move || {
-            Self::is_connect_request(&request);
-            Ok(request)
-        }).and_then(move |request| {
-            let body = request.as_ref().into_inner().body().clone();
-            let message = ConnectRequest::decode(body)?;
+            is_valid?;
+            let message = ConnectRequest::decode(packet_body)?;
             trace!(session.logger(), "Handshake request"; "message" => ?message);
 
             let bind_request = message.bind_request;
@@ -110,6 +175,7 @@ impl ConnectionService {
                 imported_service_hash: exported_services,
                 exported_service: imported_services,
             } = bind_request.unwrap();
+
             // Match all imported service IDs with our info.
             let match_imported_services = imported_services.into_iter().all(|s| {
                 // Find the service for the provided hash.
@@ -160,16 +226,13 @@ impl ConnectionService {
                 ..Default::default()
             };
 
-            Ok((session, request, response_message))
-        })
-            .and_then(|(session, request, response_message)| {
-                trace!(session.logger(), "Handshake response ready"; "message" => ?response_message);
-                let mut body = BytesMut::new();
-                body.reserve(response_message.encoded_len());
-                response_message.encode(&mut body)?;
+            trace!(session.logger(), "Handshake response ready"; "message" => ?response_message);
+            let mut body = BytesMut::new();
+            body.reserve(response_message.encoded_len());
+            response_message.encode(&mut body)?;
 
-                let response_packet = Response::from_request(request, body.freeze());
-                Ok((session, response_packet))
-            })
+            let response = Some(body.freeze());
+            Ok((session, response))
+        })
     }
 }

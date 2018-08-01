@@ -3,6 +3,7 @@
 //! Clients must succesfully complete the handshake before the server allocates memory
 //! for a new session.
 
+use futures::future::lazy;
 use futures::prelude::*;
 use slog;
 use std::io;
@@ -12,11 +13,13 @@ use tokio_codec::Decoder;
 use tokio_tcp::TcpStream;
 use tokio_timer::Deadline;
 
-pub use self::error::*;
 use protocol::bnet::frame::BNetCodec;
 use protocol::bnet::session::LightWeightSession;
 use protocol::bnet::session::SessionError;
+use rpc::transport::Response;
 use server::lobby::ServerShared;
+
+pub use self::error::*;
 
 /// Maximum duration between accepting a new client and completing the handshake.
 /// The connection is closed when the deadline expires.
@@ -71,10 +74,15 @@ fn handshake_operation(
 
     session
         .read_request()
-        .and_then(|(service, request)| {
-            ConnectionService::connect_direct(service, request).map_err(Into::into)
+        .and_then(|(session, request)| {
+            ConnectionService::connect_direct(session, &request)
+                .map_err(Into::into)
+                .map(move |(session, response_bytes)| {
+                    let response_packet = Response::from_request(request, response_bytes);
+                    (session, response_packet)
+                })
         })
-        .and_then(|(service, response)| service.send_response(response))
+        .and_then(|(session, response)| session.send_response(response))
         .inspect(|session| trace!(session.logger(), "Handshake was successful"))
 }
 

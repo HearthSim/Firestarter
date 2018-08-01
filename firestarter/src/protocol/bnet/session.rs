@@ -1,5 +1,6 @@
 //! Module with types that represent a client session.
 
+use futures::future::lazy;
 use futures::prelude::*;
 use slog;
 use std::net::SocketAddr;
@@ -79,10 +80,10 @@ impl LightWeightSession {
     pub fn send_response(
         mut self,
         response: Response<BNetPacket>,
-    ) -> impl Future<Item = Self, Error = SessionError> {
+    ) -> impl Future<Item = LightWeightSession, Error = SessionError> {
         let codec = self.codec.take().unwrap();
         codec
-            .send(response.into_inner())
+            .send(response.unwrap())
             .map_err(|error| error.into())
             .and_then(|stream| {
                 self.reinstall_codec(stream);

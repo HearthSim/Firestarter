@@ -1,9 +1,78 @@
 //! Important types for defining an RPC service.
+use bytes::Bytes;
+use futures::prelude::*;
+
+use rpc::transport::{RPCPacket, Request, Response, RouteHeader};
+use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
 
-/// TODO
-pub trait RPCService {}
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
+/// Unique representation value of a specific service.
+pub struct ServiceHash(u32);
+
+impl ServiceHash {
+    /// Creates a new ServiceHash value from the provided name.
+    pub fn from_name<S: AsRef<str>>(name: S) -> Self {
+        let data = name.as_ref().as_bytes();
+        let hash = fnv_hash_bytes(data);
+        ServiceHash(hash)
+    }
+}
+
+#[allow(missing_docs)]
+pub trait RPCService {
+    type Method: 'static + Sized;
+    type Error;
+
+    fn get_hash() -> ServiceHash;
+    fn get_name() -> &'static str;
+    fn get_methods() -> &'static [(&'static str, &'static Self::Method)];
+}
+
+#[allow(missing_docs)]
+pub trait RPCObject: RPCService {
+    type Packet: RPCPacket;
+    type Future: Future<Item = Option<Bytes>, Error = Self::Error>;
+
+    fn recognize(packet: &Request<Self::Packet>) -> Result<&'static Self::Method, Self::Error>;
+    fn call(
+        &mut self,
+        method: &'static Self::Method,
+        packet: &Request<Self::Packet>,
+    ) -> Self::Future;
+}
+
+#[allow(missing_docs)]
+pub trait RPCProxy: RPCService {
+    type Packet: RPCPacket;
+    type Future: Future<Item = (), Error = Self::Error>;
+
+    fn recognize(
+        request_metadata: &RouteHeader,
+        full_packet: &Response<Self::Packet>,
+    ) -> Result<Self::Method, Self::Error>;
+    fn handle_response(
+        &mut self,
+        method: Self::Method,
+        packet: Response<Self::Packet>,
+    ) -> Self::Future;
+}
+
+/*
+#[allow(missing_docs)]
+pub trait Recognize {
+    type Method: 'static + Sized;
+    type Incoming;
+    type Service: RPCService<Method = Self::Method>;
+    type RouteError;
+
+    fn recognize(
+        &self,
+        packet: &RouteHeader,
+    ) -> Result<(&mut Self::Service, &Self::Method), Self::RouteError>;
+}
+*/
 
 mod error {
     use prost;
