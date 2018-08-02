@@ -1,11 +1,15 @@
 //! Important types for defining an RPC service.
 use bytes::Bytes;
+use failure::Error;
 use futures::prelude::*;
 
 use rpc::transport::{RPCPacket, Request, Response, RouteHeader};
 use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
+
+#[allow(missing_docs)]
+pub type BoxedRPCResult<Error> = Box<Future<Item = Option<Bytes>, Error = Error>>;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 /// Unique representation value of a specific service.
@@ -23,7 +27,6 @@ impl ServiceHash {
 #[allow(missing_docs)]
 pub trait RPCService {
     type Method: 'static + Sized;
-    type Error;
 
     fn get_hash() -> ServiceHash;
     fn get_name() -> &'static str;
@@ -31,48 +34,14 @@ pub trait RPCService {
 }
 
 #[allow(missing_docs)]
-pub trait RPCObject: RPCService {
+pub trait RPCObject {
+    type Error: Into<Error>;
+
     type Packet: RPCPacket;
     type Future: Future<Item = Option<Bytes>, Error = Self::Error>;
 
-    fn recognize(packet: &Request<Self::Packet>) -> Result<&'static Self::Method, Self::Error>;
-    fn call(
-        &mut self,
-        method: &'static Self::Method,
-        packet: &Request<Self::Packet>,
-    ) -> Self::Future;
+    fn call(&mut self, packet: &Self::Packet) -> Self::Future;
 }
-
-#[allow(missing_docs)]
-pub trait RPCProxy: RPCService {
-    type Packet: RPCPacket;
-    type Future: Future<Item = (), Error = Self::Error>;
-
-    fn recognize(
-        request_metadata: &RouteHeader,
-        full_packet: &Response<Self::Packet>,
-    ) -> Result<Self::Method, Self::Error>;
-    fn handle_response(
-        &mut self,
-        method: Self::Method,
-        packet: Response<Self::Packet>,
-    ) -> Self::Future;
-}
-
-/*
-#[allow(missing_docs)]
-pub trait Recognize {
-    type Method: 'static + Sized;
-    type Incoming;
-    type Service: RPCService<Method = Self::Method>;
-    type RouteError;
-
-    fn recognize(
-        &self,
-        packet: &RouteHeader,
-    ) -> Result<(&mut Self::Service, &Self::Method), Self::RouteError>;
-}
-*/
 
 mod error {
     use prost;

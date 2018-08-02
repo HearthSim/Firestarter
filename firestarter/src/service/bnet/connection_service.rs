@@ -2,14 +2,15 @@
 //! client and server.
 
 use bytes::{Bytes, BytesMut};
+
+use prost::Message;
 use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
-use prost::Message;
 
 use protocol::bnet::frame::BNetPacket;
 use protocol::bnet::session::LightWeightSession;
 use rpc::system::{RPCError, RPCObject, RPCService, ServiceHash};
-use rpc::transport::{Request, Response};
+use rpc::transport::Request;
 
 #[derive(Debug, Default)]
 /// Service handling RPC requests/responses that manipulate the connection between
@@ -32,63 +33,9 @@ pub enum Methods {
     RequestDisconnect = 7,
 }
 
-impl RPCService for ConnectionService {
-    type Method = Methods;
-    type Error = RPCError;
-
-    fn get_hash() -> ServiceHash {
-        ServiceHash::from_name(Self::get_name())
-    }
-
-    fn get_name() -> &'static str {
-        "bnet.protocol.connection.ConnectionService"
-    }
-
-    fn get_methods() -> &'static [(&'static str, &'static Methods)] {
-        &[
-            ("Connect", &Self::METHOD_CONNECT),
-            ("Bind", &Self::METHOD_BIND),
-            ("Echo", &Self::METHOD_ECHO),
-            ("ForceDisconnect", &Self::METHOD_FORCE_DISCONNECT),
-            ("KeepAlive", &Self::METHOD_KEEP_ALIVE),
-            ("Encrypt", &Self::METHOD_ENCRYPT),
-            ("RequestDisconnect", &Self::METHOD_REQUEST_DISCONNECT),
-        ]
-    }
-}
-
-impl RPCObject for ConnectionService {
-    type Packet = BNetPacket;
-    type Future = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
-
-    fn recognize(packet: &Request<Self::Packet>) -> Result<&'static Self::Method, RPCError> {
-        unimplemented!()
-    }
-
-    fn call(
-        &mut self,
-        method: &'static Self::Method,
-        packet: &Request<BNetPacket>,
-    ) -> Self::Future {
-        match method {
-            Methods::Connect => {}
-            Methods::Bind => {}
-            Methods::Echo => {}
-            Methods::ForceDisconnect => {}
-            Methods::KeepAlive => {}
-            Methods::Encrypt => {}
-            Methods::RequestDisconnect => {}
-        };
-
-        Box::new(lazy(|| -> FutureResult<Option<Bytes>, RPCError> {
-            unimplemented!()
-        }))
-    }
-}
-
 impl ConnectionService {
     // TODO: Replace with general Service-like approach.
-    const SERVICE_NAME: &'static str = "ConnectionService";
+    const SERVICE_NAME: &'static str = stringify!(ConnectionService);
 
     /// See [`Methods::Connect`]
     pub const METHOD_CONNECT: Methods = Methods::Connect;
@@ -104,13 +51,37 @@ impl ConnectionService {
     pub const METHOD_ENCRYPT: Methods = Methods::Encrypt;
     /// See [`Methods::RequestDisconnect`]
     pub const METHOD_REQUEST_DISCONNECT: Methods = Methods::RequestDisconnect;
+}
 
-    fn connect_operation(
-        &mut self,
-        packet: Request<BNetPacket>,
-    ) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
-        lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
+impl RPCService for ConnectionService {
+    type Method = Methods;
+
+    fn get_hash() -> ServiceHash {
+        ServiceHash::from_name(Self::get_name())
     }
+
+    fn get_name() -> &'static str {
+        Self::SERVICE_NAME
+    }
+
+    fn get_methods() -> &'static [(&'static str, &'static Methods)] {
+        &[
+            ("Connect", &Self::METHOD_CONNECT),
+            ("Bind", &Self::METHOD_BIND),
+            ("Echo", &Self::METHOD_ECHO),
+            ("ForceDisconnect", &Self::METHOD_FORCE_DISCONNECT),
+            ("KeepAlive", &Self::METHOD_KEEP_ALIVE),
+            ("Encrypt", &Self::METHOD_ENCRYPT),
+            ("RequestDisconnect", &Self::METHOD_REQUEST_DISCONNECT),
+        ]
+    }
+}
+
+/// TODO
+pub fn connect_operation(
+    packet: &Request<BNetPacket>,
+) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
+    lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
 }
 
 impl ConnectionService {
