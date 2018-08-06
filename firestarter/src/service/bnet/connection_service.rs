@@ -7,7 +7,8 @@ use futures::prelude::*;
 
 use protocol::bnet::frame::BNetPacket;
 use protocol::bnet::session::LightWeightSession;
-use rpc::system::{RPCError, RPCRouter, RPCService, ServiceBinder, ServiceHash};
+use rpc::router::RPCRouter;
+use rpc::system::{RPCError, RPCService, ServiceBinder, ServiceHash};
 use rpc::transport::Request;
 
 #[allow(missing_docs)]

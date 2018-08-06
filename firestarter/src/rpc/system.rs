@@ -8,9 +8,6 @@ use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
 
-#[allow(missing_docs)]
-pub type BoxedRPCResult<Error> = Box<Future<Item = Option<Bytes>, Error = Error>>;
-
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 /// Unique representation value of a specific service.
 pub struct ServiceHash(u32);
@@ -38,31 +35,6 @@ pub trait RPCService {
     fn get_methods() -> &'static [(&'static Self::Method, &'static str)];
 }
 
-/*
-#[allow(missing_docs)]
-pub trait NewRouter<Service, Packet>
-where
-    Service: RPCService,
-    <Service as RPCService>::Method: 'static + Send,
-    Packet: RPCPacket,
-{
-    type Router: RPCRouter<Method = Service::Method, Packet = Packet>;
-
-    fn from_service(&self) -> Self::Router;
-}
-*/
-
-#[allow(missing_docs)]
-pub trait RPCRouter {
-    type Packet: RPCPacket;
-    type Method: 'static + Send;
-    type Future: Future<Item = Option<Bytes>, Error = RPCError>;
-
-    fn can_accept(packet: &Self::Packet) -> Result<&'static Self::Method, ()>;
-
-    fn handle(&mut self, method: &Self::Method, packet: &Self::Packet) -> Self::Future;
-}
-
 #[allow(missing_docs)]
 pub trait ServiceBinder {
     type Service: RPCService;
@@ -71,45 +43,32 @@ pub trait ServiceBinder {
 }
 
 #[allow(missing_docs)]
-pub mod hlist_extensions {
+pub trait ServiceBinderGenerator {
+    fn default() -> Self;
+}
+
+mod hlist_extensions {
     use super::*;
 
     use frunk::prelude::HList;
     use frunk::{HCons, HNil};
 
-    type BoxedRouterFuture = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
-
-    pub trait RPCHandling<'me, Packet>
-    where
-        Packet: RPCPacket,
-    {
-        fn route_packet(&'me mut self, packet: &'me Packet) -> Result<BoxedRouterFuture, ()>;
-    }
-
-    impl<'me, Packet> RPCHandling<'me, Packet> for HNil
-    where
-        Packet: RPCPacket,
-    {
-        fn route_packet(&'me mut self, _: &'me Packet) -> Result<BoxedRouterFuture, ()> {
-            Err(())
+    impl ServiceBinderGenerator for HNil {
+        fn default() -> HNil {
+            HNil
         }
     }
 
-    impl<'me, Packet, X, Tail, Method> RPCHandling<'me, Packet> for HCons<X, Tail>
+    impl<X, Tail> ServiceBinderGenerator for HCons<X, Tail>
     where
-        Packet: RPCPacket,
-        X: RPCRouter<Packet = Packet, Method = Method, Future = BoxedRouterFuture>,
-        Tail: RPCHandling<'me, Packet>,
-        Method: 'static + Send,
+        X: ServiceBinder<Service = X> + RPCService,
+        Tail: ServiceBinderGenerator,
     {
-        fn route_packet(&'me mut self, packet: &'me Packet) -> Result<BoxedRouterFuture, ()> {
-            let will_handle = X::can_accept(packet);
-            if let Ok(method) = will_handle {
-                let response = X::handle(&mut self.head, &method, packet);
-                return Ok(response);
+        fn default() -> Self {
+            HCons {
+                head: X::bind(),
+                tail: Tail::default(),
             }
-
-            Tail::route_packet(&mut self.tail, packet)
         }
     }
 }

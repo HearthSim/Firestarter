@@ -1,6 +1,6 @@
 //! Module with types that represent a client session.
 
-use futures::future::lazy;
+use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
 use slog;
 use std::net::SocketAddr;
@@ -94,8 +94,8 @@ impl LightWeightSession {
     /// Transforms the current lightweight session in a complete user session.
     ///
     /// This transformation comes with big allocations.
-    pub fn into_full_session(self) -> ClientSession {
-        unimplemented!()
+    pub fn into_full_session(self) -> impl Future<Item = (), Error = SessionError> {
+        lazy(|| -> FutureResult<(), SessionError> { unimplemented!() })
     }
 }
 
@@ -103,9 +103,13 @@ impl LightWeightSession {
 /// A complete user session.
 ///
 /// This structure contains the necessary data to properly communicate with a specific client.
-pub struct ClientSession {}
+pub struct ClientSession<Router> {
+    address: SocketAddr,
+    codec: Framed<TcpStream, BNetCodec>,
+    router: Router,
+}
 
-impl Future for ClientSession {
+impl<Router> Future for ClientSession<Router> {
     type Item = ();
     type Error = SessionError;
 
