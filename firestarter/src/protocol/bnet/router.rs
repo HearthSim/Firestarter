@@ -7,10 +7,14 @@ use std::default::Default;
 use std::marker::PhantomData;
 
 use frunk::HNil;
+use futures::prelude::*;
+use futures::future::{lazy, FutureResult};
+use bytes::Bytes;
+
 
 use protocol::bnet::frame::BNetPacket;
 use rpc::router::RPCHandling;
-use rpc::system::ServiceBinderGenerator;
+use rpc::system::{RPCError, ServiceBinderGenerator};
 use rpc::transport::{Request, Response};
 
 #[allow(missing_docs)]
@@ -62,6 +66,16 @@ where
             _phantom: PhantomData,
         }
     }
+
+    fn route_bnet_request(&mut self, packet: Request<BNetPacket>) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
+    	let handling_result = self.bnet_request_handlers.route_packet(&packet);
+        lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
+    }
+
+    fn route_bnet_response(&mut self, packet: Response<BNetPacket>) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
+    	let handling_result = self.bnet_response_handlers.route_packet(&packet);
+        lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
+    }
 }
 
 impl<'logistics, BNReq, BNRes> RouterBehaviour for RoutingLogistic<'logistics, BNReq, BNRes>
@@ -74,6 +88,28 @@ where
     }
 
     fn handle_external_bnet(&mut self, packet: BNetPacket) {
-        unimplemented!()
+        let mut packet_opt = Some(packet);
+
+        if let Some(packet) = packet_opt {
+            match packet.try_as_request() {
+                Ok(request) => {
+                	return self.route_bnet_request(request);
+                }
+                Err(packet) => packet_opt = Some(packet),
+            };
+        }
+
+        if let Some(packet) = packet_opt {
+            match packet.try_as_response() {
+                Ok(response) => {
+                    return self.route_bnet_response(response);
+                }
+                Err(packet) => packet_opt = Some(packet),
+            };
+        }
+
+        if let Some(packet) = packet_opt {
+            // TODO Error handling because packet doesn't match request/response layout.
+        }
     }
 }
