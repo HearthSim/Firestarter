@@ -8,32 +8,25 @@ impl<'a, X: RPCPacket> RPCPacket for &'a X {}
 
 #[derive(Debug)]
 /// Represents an RPC request.
-pub enum Request<Packet> {
-    /// The request has some packet.
-    Some(Packet),
-}
+pub struct Request<Packet>(Packet);
 
 impl<Packet> RPCPacket for Request<Packet> {}
 
 impl<Packet> Request<Packet> {
     /// Wraps a packet into a request.
     pub fn new(data: Packet) -> Self {
-        Request::Some(data)
+        Request(data)
     }
 
     /// Take the original packet out of the Request wrapper.
     pub fn unwrap(self) -> Packet {
-        match self {
-            Request::Some(data) => data,
-        }
+        self.0
     }
 
     /// Create a request with a reference to the containing
     /// packet.
     pub fn as_ref(&self) -> Request<&Packet> {
-        match self {
-            Request::Some(data) => Request::Some(data),
-        }
+        Request(&self.0)
     }
 }
 

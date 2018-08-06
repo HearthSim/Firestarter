@@ -22,6 +22,11 @@ impl ServiceHash {
         let hash = fnv_hash_bytes(data);
         ServiceHash(hash)
     }
+
+    /// Converts the current hash into an unsigned integer value.
+    pub fn as_uint(self) -> u32 {
+        self.0
+    }
 }
 
 #[allow(missing_docs)]
@@ -30,17 +35,83 @@ pub trait RPCService {
 
     fn get_hash() -> ServiceHash;
     fn get_name() -> &'static str;
-    fn get_methods() -> &'static [(&'static str, &'static Self::Method)];
+    fn get_methods() -> &'static [(&'static Self::Method, &'static str)];
+}
+
+/*
+#[allow(missing_docs)]
+pub trait NewRouter<Service, Packet>
+where
+    Service: RPCService,
+    <Service as RPCService>::Method: 'static + Send,
+    Packet: RPCPacket,
+{
+    type Router: RPCRouter<Method = Service::Method, Packet = Packet>;
+
+    fn from_service(&self) -> Self::Router;
+}
+*/
+
+#[allow(missing_docs)]
+pub trait RPCRouter {
+    type Packet: RPCPacket;
+    type Method: 'static + Send;
+    type Future: Future<Item = Option<Bytes>, Error = RPCError>;
+
+    fn can_accept(packet: &Self::Packet) -> Result<&'static Self::Method, ()>;
+
+    fn handle(&mut self, method: &Self::Method, packet: &Self::Packet) -> Self::Future;
 }
 
 #[allow(missing_docs)]
-pub trait RPCObject {
-    type Error: Into<Error>;
+pub trait ServiceBinder {
+    type Service: RPCService;
 
-    type Packet: RPCPacket;
-    type Future: Future<Item = Option<Bytes>, Error = Self::Error>;
+    fn bind() -> Self::Service;
+}
 
-    fn call(&mut self, packet: &Self::Packet) -> Self::Future;
+#[allow(missing_docs)]
+pub mod hlist_extensions {
+    use super::*;
+
+    use frunk::prelude::HList;
+    use frunk::{HCons, HNil};
+
+    type BoxedRouterFuture = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
+
+    pub trait RPCHandling<'me, Packet>
+    where
+        Packet: RPCPacket,
+    {
+        fn route_packet(&'me mut self, packet: &'me Packet) -> Result<BoxedRouterFuture, ()>;
+    }
+
+    impl<'me, Packet> RPCHandling<'me, Packet> for HNil
+    where
+        Packet: RPCPacket,
+    {
+        fn route_packet(&'me mut self, _: &'me Packet) -> Result<BoxedRouterFuture, ()> {
+            Err(())
+        }
+    }
+
+    impl<'me, Packet, X, Tail, Method> RPCHandling<'me, Packet> for HCons<X, Tail>
+    where
+        Packet: RPCPacket,
+        X: RPCRouter<Packet = Packet, Method = Method, Future = BoxedRouterFuture>,
+        Tail: RPCHandling<'me, Packet>,
+        Method: 'static + Send,
+    {
+        fn route_packet(&'me mut self, packet: &'me Packet) -> Result<BoxedRouterFuture, ()> {
+            let will_handle = X::can_accept(packet);
+            if let Ok(method) = will_handle {
+                let response = X::handle(&mut self.head, &method, packet);
+                return Ok(response);
+            }
+
+            Tail::route_packet(&mut self.tail, packet)
+        }
+    }
 }
 
 mod error {
@@ -75,6 +146,10 @@ mod error {
             /// The token as found in the response packet.
             token: u32,
         },
+
+        #[fail(display = "Unimplemented feature")]
+        /// Failure to process data because an unimplemented feature was reached.
+        NotImplemented,
 
         #[fail(display = "Error while decoding a Protobuffer payload: {:}", _0)]
         /// Failure to construct an object from a proto message.

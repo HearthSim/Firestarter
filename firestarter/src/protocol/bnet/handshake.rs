@@ -70,12 +70,12 @@ pub fn handle_client(
 fn handshake_operation(
     session: LightWeightSession,
 ) -> impl Future<Item = LightWeightSession, Error = HandshakeError> {
-    use service::bnet::connection_service::ConnectionService;
+    use service::bnet::connection_service::lightweight_session_connect;
 
     session
         .read_request()
         .and_then(|(session, request)| {
-            ConnectionService::connect_direct(session, &request)
+            lightweight_session_connect(session, &request)
                 .map_err(Into::into)
                 .map(move |(session, response_bytes)| {
                     let response_packet = Response::from_request(request, response_bytes);

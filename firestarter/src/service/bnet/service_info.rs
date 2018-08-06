@@ -53,13 +53,6 @@
 
 use std::collections::HashMap;
 
-use super::connection_service::ConnectionService;
-
-/// Heterogenous list of exported services which have an implementation.
-pub type ImplementedExported = Hlist![ConnectionService];
-/// Heterogenous list of imported services which have an implementation.
-pub type ImplementedImported = Hlist![()];
-
 #[repr(u32)]
 #[derive(Debug, Clone, Copy)]
 pub enum ExportedServiceID {
