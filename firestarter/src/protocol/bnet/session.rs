@@ -8,6 +8,7 @@ use tokio_codec::Framed;
 use tokio_tcp::TcpStream;
 
 use protocol::bnet::frame::{BNetCodec, BNetPacket};
+use protocol::bnet::router::{RouterBehaviour, RoutingLogistic};
 use rpc::transport::{Request, Response};
 
 pub use self::error::*;
@@ -95,7 +96,14 @@ impl LightWeightSession {
     ///
     /// This transformation comes with big allocations.
     pub fn into_full_session(self) -> impl Future<Item = (), Error = SessionError> {
-        lazy(|| -> FutureResult<(), SessionError> { unimplemented!() })
+        let LightWeightSession {
+            address,
+            codec,
+            logger,
+        } = self;
+        let codec = codec.expect("Codec contract invalid");
+        let session_future = ClientSession::new(address, codec, RoutingLogistic::default());
+        lazy(|| session_future)
     }
 }
 
@@ -103,13 +111,30 @@ impl LightWeightSession {
 /// A complete user session.
 ///
 /// This structure contains the necessary data to properly communicate with a specific client.
-pub struct ClientSession<Router> {
+pub struct ClientSession<Router: RouterBehaviour> {
     address: SocketAddr,
     codec: Framed<TcpStream, BNetCodec>,
     router: Router,
 }
 
-impl<Router> Future for ClientSession<Router> {
+impl<Router> ClientSession<Router>
+where
+    Router: RouterBehaviour,
+{
+    /// Creates a new session object for the connected client.
+    pub fn new(address: SocketAddr, codec: Framed<TcpStream, BNetCodec>, router: Router) -> Self {
+        ClientSession {
+            address,
+            codec,
+            router,
+        }
+    }
+}
+
+impl<Router> Future for ClientSession<Router>
+where
+    Router: RouterBehaviour,
+{
     type Item = ();
     type Error = SessionError;
 

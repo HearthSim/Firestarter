@@ -1,8 +1,8 @@
 //! Important types for defining a router type which can process
 //! RPC data.
 
-use futures::prelude::*;
 use bytes::Bytes;
+use futures::prelude::*;
 
 use rpc::system::RPCError;
 use rpc::transport::RPCPacket;

@@ -42,8 +42,8 @@ mod default {
 
     impl<'a> Default for RoutingLogistic<'a, DBNReq, DBNRes> {
         fn default() -> Self {
-            let bnet_request_handlers = ServiceBinderGenerator::default();
-            let bnet_response_handlers = ServiceBinderGenerator::default();
+            let bnet_request_handlers = <DBNReq as ServiceBinderGenerator>::default();
+            let bnet_response_handlers = <DBNRes as ServiceBinderGenerator>::default();
             RoutingLogistic::new(bnet_request_handlers, bnet_response_handlers)
         }
     }
@@ -54,7 +54,7 @@ where
     BNReq: RPCHandling<'logistics, Request<BNetPacket>>,
     BNRes: RPCHandling<'logistics, Response<BNetPacket>>,
 {
-	/// Creates a new object for routing packets between provided services.
+    /// Creates a new object for routing packets between provided services.
     pub fn new(bnet_request_handlers: BNReq, bnet_response_handlers: BNRes) -> Self {
         RoutingLogistic {
             bnet_request_handlers,
