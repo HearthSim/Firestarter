@@ -4,12 +4,14 @@ use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
 use slog;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 use tokio_codec::Framed;
 use tokio_tcp::TcpStream;
 
 use protocol::bnet::frame::{BNetCodec, BNetPacket};
 use protocol::bnet::router::{RouterBehaviour, RoutingLogistic};
 use rpc::transport::{Request, Response};
+use server::lobby::ServerShared;
 
 pub use self::error::*;
 
@@ -95,15 +97,37 @@ impl LightWeightSession {
     /// Transforms the current lightweight session in a complete user session.
     ///
     /// This transformation comes with big allocations.
-    pub fn into_full_session(self) -> impl Future<Item = (), Error = SessionError> {
+    pub fn into_full_session(
+        self,
+        server_shared: Arc<Mutex<ServerShared>>,
+    ) -> impl Future<Item = (), Error = SessionError> {
         let LightWeightSession {
             address,
             codec,
             logger,
         } = self;
         let codec = codec.expect("Codec contract invalid");
-        let session_future = ClientSession::new(address, codec, RoutingLogistic::default());
+        let client_shared = ClientSharedData {
+            logger,
+            server_shared,
+        };
+        let router = RoutingLogistic::default_handlers(client_shared);
+        let session_future = ClientSession::new(address, codec, router);
         lazy(|| session_future)
+    }
+}
+
+#[derive(Debug)]
+/// Structure containing important data related to the active client session.
+pub struct ClientSharedData {
+    server_shared: Arc<Mutex<ServerShared>>,
+    logger: slog::Logger,
+}
+
+impl ClientSharedData {
+    /// Retrieve the logger instance for this session.
+    pub fn logger(&self) -> &slog::Logger {
+        &self.logger
     }
 }
 

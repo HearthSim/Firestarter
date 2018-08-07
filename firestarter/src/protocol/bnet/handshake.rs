@@ -59,7 +59,7 @@ pub fn handle_client(
             error
         })
         // The full session is a future itself. It will only complete when asked or errored (including timeout).
-        .and_then(|session| session.into_full_session())
+        .and_then(move |session| session.into_full_session(shared))
         .map_err(
             move |error| error!(handler_logger, "Client handler returned error"; "error" => ?error),
         )

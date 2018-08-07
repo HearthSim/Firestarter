@@ -6,7 +6,7 @@ use futures::future::lazy;
 use futures::prelude::*;
 
 use protocol::bnet::frame::BNetPacket;
-use protocol::bnet::session::LightWeightSession;
+use protocol::bnet::session::{ClientSharedData, LightWeightSession};
 use rpc::router::RPCRouter;
 use rpc::system::{RPCError, RPCService, ServiceBinder, ServiceHash};
 use rpc::transport::Request;
@@ -68,6 +68,7 @@ impl ServiceBinder for ConnectionService {
 impl RPCRouter for ConnectionService {
     type Packet = Request<BNetPacket>;
     type Method = Methods;
+    type SharedData = ClientSharedData;
     type Future = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
 
     fn can_accept(packet: &Request<BNetPacket>) -> Result<&'static Methods, ()> {
@@ -87,7 +88,12 @@ impl RPCRouter for ConnectionService {
             .ok_or(())
     }
 
-    fn handle(&mut self, method: &Methods, packet: &Request<BNetPacket>) -> Self::Future {
+    fn handle(
+        &mut self,
+        method: &Methods,
+        data: &mut ClientSharedData,
+        packet: &Request<BNetPacket>,
+    ) -> Self::Future {
         let packet = packet.as_ref().unwrap();
         let payload = packet.body().clone();
         let state = &mut self.0;
