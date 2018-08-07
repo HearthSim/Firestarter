@@ -3,6 +3,7 @@
 //! Adressable services are collected and a message pump accepts and delivers
 //! packets to these services.
 
+use std::collections::VecDeque;
 use std::default::Default;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
@@ -50,6 +51,8 @@ where
     bnet_request_handlers: BNReq,
     bnet_response_handlers: BNRes,
 
+    bnet_response_queue:
+        VecDeque<Box<Future<Item = RouteDecision<BNetPacket>, Error = RPCError> + Send>>,
     bnet_out_queue: Vec<BNetPacket>,
     shared_data: ClientSharedData,
 }
@@ -94,6 +97,7 @@ where
             bnet_request_handlers,
             bnet_response_handlers,
 
+            bnet_response_queue: VecDeque::with_capacity(5),
             bnet_out_queue: Vec::with_capacity(5),
             shared_data,
         }
@@ -144,7 +148,8 @@ where
         if let Some(packet) = packet_opt.take() {
             match packet.try_as_request() {
                 Ok(request) => {
-                    self.route_bnet_request(request);
+                    let response = self.route_bnet_request(request);
+                    self.bnet_response_queue.push_back(Box::new(response));
                 }
                 Err(packet) => packet_opt = Some(packet),
             };
@@ -153,7 +158,8 @@ where
         if let Some(packet) = packet_opt.take() {
             match packet.try_as_response() {
                 Ok(response) => {
-                    self.route_bnet_response(response);
+                    let response = self.route_bnet_response(response);
+                    self.bnet_response_queue.push_back(Box::new(response));
                 }
                 Err(packet) => packet_opt = Some(packet),
             };
@@ -165,16 +171,34 @@ where
     }
 }
 
-impl<BNReq, BNRes> Future for RoutingLogistic<BNReq, BNRes>
+impl<BNReq, BNRes> Stream for RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>>,
     BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>>,
 {
-    type Item = Vec<Response<BNetPacket>>;
+    type Item = BNetPacket;
     type Error = RPCError;
 
-    fn poll(&mut self) -> Poll<Self::Item, RPCError> {
+    fn poll(&mut self) -> Poll<Option<Self::Item>, RPCError> {
         // Pump message queue.
-        unimplemented!()
+
+        let current_future = self.bnet_response_queue.pop_front();
+        match current_future {
+            Some(future) => {
+                let polled_result = future.poll()?;
+                if let Async::Ready(route_decision) = polled_result {
+                    match route_decision {
+                        RouteDecision::Stop => {}
+                        RouteDecision::Out(packet) => return Ok(Async::Ready(Some(packet))),
+                        RouteDecision::Forward(_) => return Err(RPCError::NotImplemented),
+                    }
+                } else {
+                    self.bnet_response_queue.push_front(current_future.unwrap());
+                }
+            }
+            None => {}
+        };
+
+        Ok(Async::NotReady)
     }
 }

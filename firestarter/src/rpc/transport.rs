@@ -29,6 +29,7 @@ impl<Packet> Request<Packet> {
 }
 
 #[derive(Debug)]
+// TODO; Turn back into enum!
 /// Represents an RPC response.
 pub struct Response<Packet>(Packet);
 

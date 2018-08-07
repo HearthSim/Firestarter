@@ -2,6 +2,7 @@
 
 use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
+use futures::Stream;
 use slog;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -155,6 +156,9 @@ where
         }
 
         // Activate message pump of router.
+        while let Async::Ready(response) = self.router.poll()? {
+            //
+        }
 
         // All messages destined for client are outputted.
 
