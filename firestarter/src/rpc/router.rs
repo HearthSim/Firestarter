@@ -5,6 +5,7 @@ use bytes::Bytes;
 use futures::prelude::*;
 
 use rpc::system::RPCError;
+use rpc::transport::internal::InternalPacket;
 use rpc::transport::RPCPacket;
 
 type BoxedRouterFuture = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
@@ -51,6 +52,21 @@ where
     fn from_service(&self) -> Self::Router;
 }
 */
+
+/// Object that can be used by logic to communicate intent to
+/// RPC compatible routers.
+pub enum RouteDecision<Packet> {
+    /// Stop routing.
+    ///
+    /// This effectively stops processing data on the current route.
+    Stop,
+
+    /// Returns the specified packet to the connected endpoint.
+    Out(Packet),
+
+    /// Internally route the provided packet to another service.
+    Forward(InternalPacket),
+}
 
 mod hlist_extensions {
     use super::*;

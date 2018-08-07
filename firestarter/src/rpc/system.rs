@@ -3,7 +3,7 @@ use bytes::Bytes;
 use failure::Error;
 use futures::prelude::*;
 
-use rpc::transport::{RPCPacket, Request, Response, RouteHeader};
+use rpc::transport::{RPCPacket, Request, Response};
 use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
@@ -105,6 +105,10 @@ mod error {
             /// The token as found in the response packet.
             token: u32,
         },
+
+        #[fail(display = "There was no route found for this provided packet")]
+        /// Failure to process data because no route was found for the provided packet.
+        NoRoute,
 
         #[fail(display = "Unimplemented feature")]
         /// Failure to process data because an unimplemented feature was reached.

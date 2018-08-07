@@ -78,7 +78,7 @@ fn handshake_operation(
             lightweight_session_connect(session, &request)
                 .map_err(Into::into)
                 .map(move |(session, response_bytes)| {
-                    let response_packet = Response::from_request(request, response_bytes);
+                    let response_packet = Response::from_request(request, response_bytes.unwrap());
                     (session, response_packet)
                 })
         })

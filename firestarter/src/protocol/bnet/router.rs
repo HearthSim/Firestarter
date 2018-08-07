@@ -11,15 +11,32 @@ use bytes::Bytes;
 use frunk::HNil;
 use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
+use slog;
 
 use protocol::bnet::frame::BNetPacket;
-use protocol::bnet::session::ClientSharedData;
-use rpc::router::RPCHandling;
+use rpc::router::{RPCHandling, RouteDecision};
 use rpc::system::{RPCError, ServiceBinderGenerator};
 use rpc::transport::{Request, Response};
+use server::lobby::ServerShared;
+
+type BNetRoute = RouteDecision<BNetPacket>;
+
+#[derive(Debug)]
+/// Structure containing important data related to the active client session.
+pub struct ClientSharedData {
+    server_shared: Arc<Mutex<ServerShared>>,
+    logger: slog::Logger,
+}
+
+impl ClientSharedData {
+    /// Retrieve the logger instance for this session.
+    pub fn logger(&self) -> &slog::Logger {
+        &self.logger
+    }
+}
 
 #[allow(missing_docs)]
-pub trait RouterBehaviour: Future<Item = (), Error = RPCError> {
+pub trait RouterBehaviour {
     fn handle_external_bnet(&mut self, packet: BNetPacket);
 }
 
@@ -32,6 +49,8 @@ where
 {
     bnet_request_handlers: BNReq,
     bnet_response_handlers: BNRes,
+
+    bnet_out_queue: Vec<BNetPacket>,
     shared_data: ClientSharedData,
 }
 
@@ -45,7 +64,14 @@ mod default {
 
     impl RoutingLogistic<DBNReq, DBNRes> {
         /// Creates a new router with implemented service handlers.
-        pub fn default_handlers(shared_data: ClientSharedData) -> Self {
+        pub fn default_handlers(
+            server_shared: Arc<Mutex<ServerShared>>,
+            logger: slog::Logger,
+        ) -> Self {
+            let shared_data = ClientSharedData {
+                server_shared,
+                logger,
+            };
             let bnet_request_handlers = <DBNReq as ServiceBinderGenerator>::default();
             let bnet_response_handlers = <DBNRes as ServiceBinderGenerator>::default();
             RoutingLogistic::new(shared_data, bnet_request_handlers, bnet_response_handlers)
@@ -67,28 +93,43 @@ where
         RoutingLogistic {
             bnet_request_handlers,
             bnet_response_handlers,
+
+            bnet_out_queue: Vec::with_capacity(5),
             shared_data,
         }
     }
 
     fn route_bnet_request(
         &mut self,
-        packet: Request<BNetPacket>,
-    ) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
-        let handling_result = self
-            .bnet_request_handlers
-            .route_packet(&mut self.shared_data, &packet);
-        lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
+        request: Request<BNetPacket>,
+    ) -> impl Future<Item = RouteDecision<BNetPacket>, Error = RPCError> {
+        self.bnet_request_handlers
+            .route_packet(&mut self.shared_data, &request)
+            .map_err(|_| RPCError::NoRoute)
+            .into_future()
+            .flatten()
+            .and_then(move |bytes_opt| match bytes_opt {
+                Some(body) => {
+                    let response = Response::from_request(request, body);
+                    Ok(RouteDecision::Out(response.unwrap()))
+                }
+                None => Ok(RouteDecision::Stop),
+            })
     }
 
     fn route_bnet_response(
         &mut self,
         packet: Response<BNetPacket>,
-    ) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
-        let handling_result = self
-            .bnet_response_handlers
-            .route_packet(&mut self.shared_data, &packet);
-        lazy(|| -> FutureResult<Option<Bytes>, RPCError> { unimplemented!() })
+    ) -> impl Future<Item = RouteDecision<BNetPacket>, Error = RPCError> {
+        self.bnet_response_handlers
+            .route_packet(&mut self.shared_data, &packet)
+            .map_err(|_| RPCError::NoRoute)
+            .into_future()
+            .flatten()
+            .and_then(move |bytes_opt| {
+                // TODO; Find out what to do with a response to a response!
+                Ok(RouteDecision::Stop)
+            })
     }
 }
 
@@ -129,10 +170,10 @@ where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>>,
     BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>>,
 {
-    type Item = ();
+    type Item = Vec<Response<BNetPacket>>;
     type Error = RPCError;
 
-    fn poll(&mut self) -> Poll<(), RPCError> {
+    fn poll(&mut self) -> Poll<Self::Item, RPCError> {
         // Pump message queue.
         unimplemented!()
     }

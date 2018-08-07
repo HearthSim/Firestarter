@@ -21,7 +21,7 @@ impl BNetPacket {
 
 impl Response<BNetPacket> {
     /// Build a packet which is a direct [`Response`] to the mentioned [`Request`].
-    pub fn from_request(request: Request<BNetPacket>, body: Option<Bytes>) -> Self {
+    pub fn from_request(request: Request<BNetPacket>, body: Bytes) -> Self {
         unimplemented!()
     }
 }

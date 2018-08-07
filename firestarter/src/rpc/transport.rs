@@ -1,7 +1,5 @@
 //! Types wich semantically constrain meaning of data.
 
-pub use self::sealed::*;
-
 /// Marker trait signifying that a packet is compatible with the RPC system.
 pub trait RPCPacket {}
 impl<'a, X: RPCPacket> RPCPacket for &'a X {}
@@ -32,17 +30,14 @@ impl<Packet> Request<Packet> {
 
 #[derive(Debug)]
 /// Represents an RPC response.
-pub enum Response<Packet> {
-    /// The response has some packet.
-    Some(Packet),
-}
+pub struct Response<Packet>(Packet);
 
 impl<Packet> RPCPacket for Response<Packet> {}
 
 impl<Packet> Response<Packet> {
     /// Wraps a packet into a response.
     pub fn new(data: Packet) -> Self {
-        Response::Some(data)
+        Response(data)
     }
 
     /// Take the original packet out of the Response wrapper.
@@ -50,21 +45,18 @@ impl<Packet> Response<Packet> {
     /// # Panics
     /// This method panics if the variant is Response::None!
     pub fn unwrap(self) -> Packet {
-        match self {
-            Response::Some(data) => data,
-        }
+        self.0
     }
 
     /// Create a response with a reference to the containing
     /// packet.
     pub fn as_ref(&self) -> Response<&Packet> {
-        match self {
-            Response::Some(data) => Response::Some(data),
-        }
+        Response(&self.0)
     }
 }
 
-mod sealed {
+/// Module containing all types for internally routing requests/responses.
+pub mod internal {
     use bytes::Bytes;
     use rpc::system::ServiceHash;
 

@@ -107,27 +107,9 @@ impl LightWeightSession {
             logger,
         } = self;
         let codec = codec.expect("Codec contract invalid");
-        let client_shared = ClientSharedData {
-            logger,
-            server_shared,
-        };
-        let router = RoutingLogistic::default_handlers(client_shared);
+        let router = RoutingLogistic::default_handlers(server_shared, logger);
         let session_future = ClientSession::new(address, codec, router);
         lazy(|| session_future)
-    }
-}
-
-#[derive(Debug)]
-/// Structure containing important data related to the active client session.
-pub struct ClientSharedData {
-    server_shared: Arc<Mutex<ServerShared>>,
-    logger: slog::Logger,
-}
-
-impl ClientSharedData {
-    /// Retrieve the logger instance for this session.
-    pub fn logger(&self) -> &slog::Logger {
-        &self.logger
     }
 }
 
@@ -163,6 +145,19 @@ where
     type Error = SessionError;
 
     fn poll(&mut self) -> Poll<(), SessionError> {
+        // Pull external data
+        while let Async::Ready(bnet_packet_opt) = self.codec.poll()? {
+            if let Some(bnet_packet) = bnet_packet_opt {
+                self.router.handle_external_bnet(bnet_packet);
+            } else {
+                return Err(SessionError::ClientDisconnect);
+            }
+        }
+
+        // Activate message pump of router.
+
+        // All messages destined for client are outputted.
+
         unimplemented!()
     }
 }

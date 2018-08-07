@@ -6,7 +6,8 @@ use futures::future::lazy;
 use futures::prelude::*;
 
 use protocol::bnet::frame::BNetPacket;
-use protocol::bnet::session::{ClientSharedData, LightWeightSession};
+use protocol::bnet::router::ClientSharedData;
+use protocol::bnet::session::LightWeightSession;
 use rpc::router::RPCRouter;
 use rpc::system::{RPCError, RPCService, ServiceBinder, ServiceHash};
 use rpc::transport::Request;
@@ -123,7 +124,7 @@ fn validate_connect_request<'a>(
         Err(e) => Err(e),
     };
 
-    lazy(move || result)
+    result.into_future()
 }
 
 /// Attempts to perform the connect operation on a lightweight client session.
@@ -142,5 +143,5 @@ fn op_connect(
     state: &mut Inner,
     payload: Bytes,
 ) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
-    lazy(|| Err(RPCError::NotImplemented))
+    Err(RPCError::NotImplemented).into_future()
 }
