@@ -9,6 +9,8 @@
 // #![cfg_attr(test,deny(missing_docs))]
 
 #[macro_use]
+extern crate futures;
+#[macro_use]
 extern crate typed_builder;
 #[macro_use]
 extern crate slog;
@@ -25,7 +27,6 @@ extern crate frunk;
 
 extern crate bytes;
 extern crate chrono;
-extern crate futures;
 extern crate prost;
 extern crate slog_stdlog;
 extern crate tokio;

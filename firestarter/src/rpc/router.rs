@@ -4,54 +4,20 @@
 use bytes::Bytes;
 use futures::prelude::*;
 
-use rpc::system::RPCError;
+use rpc::system::{RPCError, RPCResult};
 use rpc::transport::internal::InternalPacket;
 use rpc::transport::RPCPacket;
 
-type BoxedRouterFuture = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
+type BoxedFuture<Item> = Box<Future<Item = Item, Error = RPCError>>;
 
-#[allow(missing_docs)]
-pub trait RPCRouter {
-    type Packet: RPCPacket;
-    type Method: 'static + Send;
-    type SharedData;
-    type Future: Future<Item = Option<Bytes>, Error = RPCError>;
-
-    fn can_accept(packet: &Self::Packet) -> Result<&'static Self::Method, ()>;
-
-    fn handle(
-        &mut self,
-        method: &Self::Method,
-        shared_data: &mut Self::SharedData,
-        packet: &Self::Packet,
-    ) -> Self::Future;
+/// A result returned by RPC services.
+pub enum ProcessResult<Packet> {
+    /// Immediate result.
+    Immediate(RouteDecision<Packet>),
+    /// The result is still being calculated.
+    /// Poll the inner future for completion.
+    NotReady(BoxedFuture<RouteDecision<Packet>>),
 }
-
-#[allow(missing_docs)]
-pub trait RPCHandling<Data, Packet>
-where
-    Packet: RPCPacket,
-{
-    fn route_packet(
-        &mut self,
-        shared_data: &mut Data,
-        packet: &Packet,
-    ) -> Result<BoxedRouterFuture, ()>;
-}
-
-/*
-#[allow(missing_docs)]
-pub trait NewRouter<Service, Packet>
-where
-    Service: RPCService,
-    <Service as RPCService>::Method: 'static + Send,
-    Packet: RPCPacket,
-{
-    type Router: RPCRouter<Method = Service::Method, Packet = Packet>;
-
-    fn from_service(&self) -> Self::Router;
-}
-*/
 
 /// Object that can be used by logic to communicate intent to
 /// RPC compatible routers.
@@ -68,42 +34,73 @@ pub enum RouteDecision<Packet> {
     Forward(InternalPacket),
 }
 
+#[allow(missing_docs)]
+pub trait RPCRouter {
+    type Request: RPCPacket;
+    type Response: RPCPacket;
+    type Method: 'static + Send;
+    type SharedData;
+
+    fn can_accept(packet: &Self::Request) -> RPCResult<&'static Self::Method>;
+
+    fn handle(
+        &mut self,
+        method: &Self::Method,
+        shared_data: &mut Self::SharedData,
+        packet: &Self::Request,
+    ) -> RPCResult<ProcessResult<Self::Response>>;
+}
+
+#[allow(missing_docs)]
+pub trait RPCHandling<Data, Request, Response>
+where
+    Request: RPCPacket,
+    Response: RPCPacket,
+{
+    fn route_packet(
+        &mut self,
+        shared_data: &mut Data,
+        packet: &Request,
+    ) -> RPCResult<ProcessResult<Response>>;
+}
+
 mod hlist_extensions {
     use super::*;
 
     use frunk::prelude::HList;
     use frunk::{HCons, HNil};
 
-    impl<Data, Packet> RPCHandling<Data, Packet> for HNil
+    impl<Data, Request, Response> RPCHandling<Data, Request, Response> for HNil
     where
-        Packet: RPCPacket,
+        Request: RPCPacket,
+        Response: RPCPacket,
     {
-        fn route_packet(&mut self, _: &mut Data, _: &Packet) -> Result<BoxedRouterFuture, ()> {
-            Err(())
+        fn route_packet(
+            &mut self,
+            _: &mut Data,
+            _: &Request,
+        ) -> RPCResult<ProcessResult<Response>> {
+            Err(RPCError::NoRoute)
         }
     }
 
-    impl<Data, Packet, X, Tail, Method> RPCHandling<Data, Packet> for HCons<X, Tail>
+    impl<Data, Request, Response, X, Tail, Method> RPCHandling<Data, Request, Response>
+        for HCons<X, Tail>
     where
-        Packet: RPCPacket,
-        X: RPCRouter<
-            Packet = Packet,
-            Method = Method,
-            SharedData = Data,
-            Future = BoxedRouterFuture,
-        >,
-        Tail: RPCHandling<Data, Packet>,
+        Request: RPCPacket,
+        Response: RPCPacket,
+        X: RPCRouter<Request = Request, Response = Response, Method = Method, SharedData = Data>,
+        Tail: RPCHandling<Data, Request, Response>,
         Method: 'static + Send,
     {
         fn route_packet(
             &mut self,
             shared_data: &mut Data,
-            packet: &Packet,
-        ) -> Result<BoxedRouterFuture, ()> {
+            packet: &Request,
+        ) -> RPCResult<ProcessResult<Response>> {
             let will_handle = X::can_accept(packet);
             if let Ok(method) = will_handle {
-                let response = X::handle(&mut self.head, &method, shared_data, packet);
-                return Ok(response);
+                return X::handle(&mut self.head, &method, shared_data, packet);
             }
 
             Tail::route_packet(&mut self.tail, shared_data, packet)

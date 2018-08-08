@@ -75,12 +75,10 @@ fn handshake_operation(
     session
         .read_request()
         .and_then(|(session, request)| {
-            lightweight_session_connect(session, &request)
+            lightweight_session_connect(&session, &request)
                 .map_err(Into::into)
-                .map(move |(session, response_bytes)| {
-                    let response_packet = Response::from_request(request, response_bytes.unwrap());
-                    (session, response_packet)
-                })
+                .map(move |response| (session, response))
+                .into_future()
         })
         .and_then(|(session, response)| session.send_response(response))
         .inspect(|session| trace!(session.logger(), "Handshake was successful"))

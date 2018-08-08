@@ -4,6 +4,11 @@
 pub trait RPCPacket {}
 impl<'a, X: RPCPacket> RPCPacket for &'a X {}
 
+/// Stable type which replaces the NEVER type primitive.
+// TODO; Remove this when never (!) is stabilized.
+pub enum Never {}
+impl RPCPacket for Never {}
+
 #[derive(Debug)]
 /// Represents an RPC request.
 pub struct Request<Packet>(Packet);

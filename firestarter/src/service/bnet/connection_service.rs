@@ -8,9 +8,9 @@ use futures::prelude::*;
 use protocol::bnet::frame::BNetPacket;
 use protocol::bnet::router::ClientSharedData;
 use protocol::bnet::session::LightWeightSession;
-use rpc::router::RPCRouter;
-use rpc::system::{RPCError, RPCService, ServiceBinder, ServiceHash};
-use rpc::transport::Request;
+use rpc::router::{ProcessResult, RPCRouter, RouteDecision};
+use rpc::system::{RPCError, RPCResult, RPCService, ServiceBinder, ServiceHash};
+use rpc::transport::{Request, Response};
 
 #[allow(missing_docs)]
 #[repr(u32)]
@@ -67,18 +67,22 @@ impl ServiceBinder for ConnectionService {
 }
 
 impl RPCRouter for ConnectionService {
-    type Packet = Request<BNetPacket>;
+    type Request = Request<BNetPacket>;
+    type Response = Response<BNetPacket>;
     type Method = Methods;
     type SharedData = ClientSharedData;
-    type Future = Box<Future<Item = Option<Bytes>, Error = RPCError>>;
 
-    fn can_accept(packet: &Request<BNetPacket>) -> Result<&'static Methods, ()> {
+    fn can_accept(packet: &Request<BNetPacket>) -> RPCResult<&'static Methods> {
         let packet_header = packet.as_ref().unwrap().header();
         let packet_service_hash = packet_header.service_id;
-        let packet_method_id = packet_header.method_id.ok_or(())?;
+        let packet_method_id = packet_header.method_id.ok_or(RPCError::UnknownRequest {
+            service_name: Self::get_name(),
+        })?;
 
         if packet_service_hash != ConnectionService::get_hash().as_uint() {
-            return Err(());
+            return Err(RPCError::UnknownRequest {
+                service_name: Self::get_name(),
+            });
         }
 
         ConnectionService::get_methods()
@@ -86,7 +90,9 @@ impl RPCRouter for ConnectionService {
             .filter(|&(&method, _)| method as u32 == packet_method_id)
             .map(|&(method, _)| method)
             .next()
-            .ok_or(())
+            .ok_or(RPCError::UnknownRequest {
+                service_name: Self::get_name(),
+            })
     }
 
     fn handle(
@@ -94,21 +100,21 @@ impl RPCRouter for ConnectionService {
         method: &Methods,
         data: &mut ClientSharedData,
         packet: &Request<BNetPacket>,
-    ) -> Self::Future {
+    ) -> RPCResult<ProcessResult<Response<BNetPacket>>> {
         let packet = packet.as_ref().unwrap();
         let payload = packet.body().clone();
         let state = &mut self.0;
 
         match method {
-            Methods::Connect => Box::new(op_connect(state, payload)),
+            Methods::Connect => op_connect(state, payload)
+                .map(RouteDecision::Out)
+                .map(ProcessResult::Immediate),
             _ => unimplemented!(),
         }
     }
 }
 
-fn validate_connect_request<'a>(
-    packet: &'a Request<BNetPacket>,
-) -> impl Future<Item = (), Error = RPCError> {
+fn validate_connect_request<'a>(packet: &'a Request<BNetPacket>) -> RPCResult<()> {
     let packet_data = packet.as_ref().unwrap();
     let header = packet_data.header();
     let method_test = header.method_id.ok_or_else(|| RPCError::UnknownRequest {
@@ -124,24 +130,19 @@ fn validate_connect_request<'a>(
         Err(e) => Err(e),
     };
 
-    result.into_future()
+    result
 }
 
 /// Attempts to perform the connect operation on a lightweight client session.
 pub fn lightweight_session_connect<'a>(
-    session: LightWeightSession,
+    session: &LightWeightSession,
     packet: &'a Request<BNetPacket>,
-) -> impl Future<Item = (LightWeightSession, Option<Bytes>), Error = RPCError> {
+) -> RPCResult<Response<BNetPacket>> {
     let payload = packet.as_ref().unwrap().body().clone();
-
-    validate_connect_request(packet)
-        .and_then(move |_| op_connect(&mut Inner {}, payload))
-        .map(move |response| (session, response))
+    let _ = validate_connect_request(packet)?;
+    op_connect(&mut Inner {}, payload)
 }
 
-fn op_connect(
-    state: &mut Inner,
-    payload: Bytes,
-) -> impl Future<Item = Option<Bytes>, Error = RPCError> {
-    Err(RPCError::NotImplemented).into_future()
+fn op_connect(state: &mut Inner, payload: Bytes) -> RPCResult<Response<BNetPacket>> {
+    unimplemented!()
 }

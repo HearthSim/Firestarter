@@ -108,8 +108,8 @@ impl LightWeightSession {
             logger,
         } = self;
         let codec = codec.expect("Codec contract invalid");
-        let router = RoutingLogistic::default_handlers(server_shared, logger);
-        let session_future = ClientSession::new(address, codec, router);
+        let router = RoutingLogistic::default_handlers(server_shared, codec, logger);
+        let session_future = ClientSession::new(address, router);
         lazy(|| session_future)
     }
 }
@@ -120,7 +120,6 @@ impl LightWeightSession {
 /// This structure contains the necessary data to properly communicate with a specific client.
 pub struct ClientSession<Router: RouterBehaviour> {
     address: SocketAddr,
-    codec: Framed<TcpStream, BNetCodec>,
     router: Router,
 }
 
@@ -129,12 +128,8 @@ where
     Router: RouterBehaviour,
 {
     /// Creates a new session object for the connected client.
-    pub fn new(address: SocketAddr, codec: Framed<TcpStream, BNetCodec>, router: Router) -> Self {
-        ClientSession {
-            address,
-            codec,
-            router,
-        }
+    pub fn new(address: SocketAddr, router: Router) -> Self {
+        ClientSession { address, router }
     }
 }
 
@@ -146,22 +141,10 @@ where
     type Error = SessionError;
 
     fn poll(&mut self) -> Poll<(), SessionError> {
-        // Pull external data
-        while let Async::Ready(bnet_packet_opt) = self.codec.poll()? {
-            if let Some(bnet_packet) = bnet_packet_opt {
-                self.router.handle_external_bnet(bnet_packet);
-            } else {
-                return Err(SessionError::ClientDisconnect);
-            }
-        }
-
         // Activate message pump of router.
-        while let Async::Ready(response) = self.router.poll()? {
-            //
-        }
+        // try_ready!(self.router.poll());
 
-        // All messages destined for client are outputted.
-
+        // Do other stuff..
         unimplemented!()
     }
 }

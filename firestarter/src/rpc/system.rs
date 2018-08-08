@@ -8,6 +8,9 @@ use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
 
+/// Result type for RPC related methods.
+pub type RPCResult<Item> = Result<Item, RPCError>;
+
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 /// Unique representation value of a specific service.
 pub struct ServiceHash(u32);
