@@ -5,6 +5,7 @@
 
 use std::collections::VecDeque;
 use std::default::Default;
+use std::fmt;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
@@ -43,7 +44,6 @@ pub trait RouterBehaviour {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug)]
 pub struct RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
@@ -52,8 +52,98 @@ where
     bnet_request_handlers: BNReq,
     bnet_response_handlers: BNRes,
 
+    queued_blocking_packet: Option<BNetPacket>,
+    bnet_blocked_response:
+        Option<Box<Future<Item = Response<BNetPacket>, Error = RPCError> + Send>>,
+    queued_responses: VecDeque<Response<BNetPacket>>,
+
     codec: Framed<TcpStream, BNetCodec>,
     shared_data: ClientSharedData,
+}
+
+impl<BNReq, BNRes> Future for RoutingLogistic<BNReq, BNRes>
+where
+    BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
+{
+    type Item = ();
+    type Error = SessionError;
+
+    fn poll(&mut self) -> Poll<(), SessionError> {
+        // Poll blocked future.
+        let mut ready_decision = None;
+        if let Some(blocked) = self.bnet_blocked_response.as_mut() {
+            match blocked.poll()? {
+                Async::Ready(decision) => ready_decision = Some(decision),
+                Async::NotReady => {
+                    // Only continue if we have room to queue up one more blocking packet.
+                    if self.queued_blocking_packet.is_some() {
+                        return Ok(Async::NotReady);
+                    }
+                }
+            };
+        }
+
+        if let Some(decision) = ready_decision {}
+
+        // Process next blocking packet.
+
+        // Pull external data.
+        while let Async::Ready(bnet_packet_opt) = self.codec.poll()? {
+            if let Some(bnet_packet) = bnet_packet_opt {
+                // self.handle_external_bnet(bnet_packet);
+                unimplemented!()
+            } else {
+                return Ok(Async::Ready(()));
+            }
+        }
+
+        // Push awaiting responses onto the client sink.
+        let mut has_written = false;
+        let mut failed_response = None;
+        while let Some(response_packet) = self.queued_responses.pop_front() {
+            match self.codec.start_send(response_packet.unwrap())? {
+                AsyncSink::Ready => has_written = true,
+                AsyncSink::NotReady(response) => {
+                    failed_response = Some(response);
+                    break;
+                }
+            };
+        }
+
+        if let Some(response) = failed_response {
+            self.queued_responses.push_front(Response::new(response));
+        }
+
+        if has_written {
+            match self.codec.poll_complete()? {
+                Async::Ready(_) => {}
+                Async::NotReady => {
+                    // Should poll again!
+                    unimplemented!()
+                }
+            }
+        }
+
+        Ok(Async::NotReady)
+    }
+}
+
+impl<BNReq, BNRes> fmt::Debug for RoutingLogistic<BNReq, BNRes>
+where
+    BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>> + fmt::Debug,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never> + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("RoutingLogistic")
+            .field("bnet_request_handlers", &self.bnet_request_handlers)
+            .field("bnet_response_handlers", &self.bnet_response_handlers)
+            .field("queued_blocking_packet", &self.queued_blocking_packet)
+            .field("queued_responses", &self.queued_responses)
+            .field("codec", &self.codec)
+            .field("shared_data", &self.shared_data)
+            .finish()
+    }
 }
 
 mod default {
@@ -102,6 +192,10 @@ where
         RoutingLogistic {
             bnet_request_handlers,
             bnet_response_handlers,
+
+            queued_blocking_packet: None,
+            bnet_blocked_response: None,
+            queued_responses: VecDeque::with_capacity(2),
 
             codec,
             shared_data,
@@ -197,27 +291,5 @@ where
         if let Some(packet) = packet_opt {
             // TODO Error handling because packet doesn't match request/response layout.
         }
-    }
-}
-
-impl<BNReq, BNRes> Future for RoutingLogistic<BNReq, BNRes>
-where
-    BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
-{
-    type Item = ();
-    type Error = SessionError;
-
-    fn poll(&mut self) -> Poll<(), SessionError> {
-        // Pull external data.
-        while let Async::Ready(bnet_packet_opt) = self.codec.poll()? {
-            if let Some(bnet_packet) = bnet_packet_opt {
-                self.handle_external_bnet(bnet_packet);
-            } else {
-                return Ok(Async::Ready(()));
-            }
-        }
-
-        Ok(Async::NotReady)
     }
 }
