@@ -14,11 +14,13 @@ use tokio_codec::Framed;
 use tokio_tcp::TcpStream;
 
 use protocol::bnet::frame::{BNetCodec, BNetPacket};
-use protocol::bnet::session::SessionError;
+use protocol::bnet::session::{ClientHash, SessionError};
 use rpc::router::{ProcessResult, RPCHandling, RouteDecision};
 use rpc::system::{RPCError, RPCResult, ServiceBinderGenerator};
 use rpc::transport::{Request, Response};
 use server::lobby::ServerShared;
+
+const BLOCKING_OPERATION_QUEUE_LEN: usize = 2;
 
 type BNetBlockinOperation =
     Box<Future<Item = RouteDecision<Response<BNetPacket>>, Error = RPCError> + Send>;
@@ -26,14 +28,20 @@ type BNetBlockinOperation =
 #[derive(Debug)]
 /// Structure containing important data related to the active client session.
 pub struct ClientSharedData {
+    client_id: ClientHash,
     server_shared: Arc<Mutex<ServerShared>>,
     logger: slog::Logger,
 }
 
 impl ClientSharedData {
     /// Creates a new instance of data which is shared accross all services.
-    pub fn new(server_shared: Arc<Mutex<ServerShared>>, logger: slog::Logger) -> Self {
+    pub fn new(
+        client_id: ClientHash,
+        server_shared: Arc<Mutex<ServerShared>>,
+        logger: slog::Logger,
+    ) -> Self {
         ClientSharedData {
+            client_id,
             server_shared,
             logger,
         }
@@ -42,6 +50,7 @@ impl ClientSharedData {
     /// Creates a stub instance with only an active logger.
     pub fn stub(logger: slog::Logger) -> Self {
         ClientSharedData {
+            client_id: ClientHash::default(),
             server_shared: Arc::new(Mutex::new(ServerShared::default())),
             logger: logger,
         }
@@ -65,7 +74,7 @@ where
     bnet_request_handlers: BNReq,
     bnet_response_handlers: BNRes,
 
-    bnet_blocking_ops_queue: [Option<BNetBlockinOperation>; 2],
+    bnet_blocking_ops_queue: [Option<BNetBlockinOperation>; BLOCKING_OPERATION_QUEUE_LEN],
     queued_responses: VecDeque<Response<BNetPacket>>,
 
     codec: Framed<TcpStream, BNetCodec>,
@@ -359,14 +368,9 @@ mod default {
     impl RoutingLogistic<DBNReq, DBNRes> {
         /// Creates a new router with implemented service handlers.
         pub fn default_handlers(
-            server_shared: Arc<Mutex<ServerShared>>,
+            shared_data: ClientSharedData,
             codec: Framed<TcpStream, BNetCodec>,
-            logger: slog::Logger,
         ) -> Self {
-            let shared_data = ClientSharedData {
-                server_shared,
-                logger,
-            };
             let bnet_request_handlers = <DBNReq as ServiceBinderGenerator>::default();
             let bnet_response_handlers = <DBNRes as ServiceBinderGenerator>::default();
             RoutingLogistic::new(

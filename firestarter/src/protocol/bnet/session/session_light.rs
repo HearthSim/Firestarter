@@ -1,5 +1,3 @@
-//! Module with types that represent a client session.
-
 use futures::prelude::*;
 use futures::Stream;
 use slog;
@@ -9,11 +7,10 @@ use tokio_codec::Framed;
 use tokio_tcp::TcpStream;
 
 use protocol::bnet::frame::{BNetCodec, BNetPacket};
-use protocol::bnet::router::RoutingLogistic;
+use protocol::bnet::router::{ClientSharedData, RoutingLogistic};
+use protocol::bnet::session::{ClientHash, ClientSession, SessionError};
 use rpc::transport::{Request, Response};
 use server::lobby::ServerShared;
-
-pub use self::error::*;
 
 #[derive(Debug)]
 /// A lightweight session is the smallest allocation necessary to handle a newly connected
@@ -106,92 +103,12 @@ impl LightWeightSession {
             codec,
             logger,
         } = self;
+        let client_id = ClientHash::from_socket_address(address);
+        let shared_data = ClientSharedData::new(client_id, server_shared, logger);
+        //
         let codec = codec.expect("Codec contract invalid");
-        let router = RoutingLogistic::default_handlers(server_shared, codec, logger);
+        let router = RoutingLogistic::default_handlers(shared_data, codec);
         let session_future = ClientSession::new(address, router);
         session_future
-    }
-}
-
-#[derive(Debug)]
-/// A complete user session.
-///
-/// This structure contains the necessary data to properly communicate with a specific client.
-pub struct ClientSession<Router>
-where
-    Router: Future<Error = SessionError>,
-{
-    address: SocketAddr,
-    router: Router,
-}
-
-impl<Router> ClientSession<Router>
-where
-    Router: Future<Error = SessionError>,
-{
-    /// Creates a new session object for the connected client.
-    pub fn new(address: SocketAddr, router: Router) -> Self {
-        ClientSession { address, router }
-    }
-}
-
-impl<Router> Future for ClientSession<Router>
-where
-    Router: Future<Error = SessionError>,
-{
-    type Item = ();
-    type Error = SessionError;
-
-    fn poll(&mut self) -> Poll<(), SessionError> {
-        // Activate message pump of router.
-        let _ = try_ready!(self.router.poll());
-
-        // TODO; Do other stuff..
-        // Here is where you would execute post session logic.
-
-        Ok(Async::Ready(()))
-    }
-}
-
-mod error {
-    use protocol::bnet::frame::CodecError;
-    use rpc::system::RPCError;
-
-    #[derive(Debug, Fail)]
-    /// Error type related to a client session.
-    pub enum SessionError {
-        #[fail(display = "Client disconnected")]
-        /// Session failure because of client disconnect.
-        ClientDisconnect,
-
-        #[fail(display = "Client didn't send expected request")]
-        /// Session failure because of faulty client communications.
-        MissingRequest,
-
-        #[fail(display = "A passed deadline triggered a timeout on the connection")]
-        /// The client did not responsd (properly) within the set deadline.
-        Timeout,
-
-        #[fail(display = "{}", _0)]
-        /// Session failure due to malformed data.
-        Codec(#[cause] CodecError),
-
-        #[fail(display = "{}", _0)]
-        /// Session failure due to a service error.
-        RPC(#[cause] RPCError),
-    }
-
-    // Usability improvement
-    impl From<CodecError> for SessionError {
-        fn from(x: CodecError) -> Self {
-            SessionError::Codec(x)
-        }
-    }
-
-    // Usability improvement
-    impl From<RPCError> for SessionError {
-        fn from(x: RPCError) -> Self {
-            SessionError::RPC(x)
-        }
     }
 }
