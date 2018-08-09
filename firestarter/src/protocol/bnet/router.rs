@@ -239,10 +239,10 @@ where
 
     fn process_external_bnet(&mut self, packet: BNetPacket) -> Result<(), SessionError> {
         let mut packet_opt = Some(packet);
-
         if let Some(packet) = packet_opt.take() {
             match packet.try_as_request() {
                 Ok(request) => {
+                    trace!(self.shared_data.logger(), "New external packet"; "data" => ?request, "request"=> true);
                     self.route_bnet_request(request)?;
                 }
                 Err(packet) => packet_opt = Some(packet),
@@ -252,6 +252,7 @@ where
         if let Some(packet) = packet_opt.take() {
             match packet.try_as_response() {
                 Ok(response) => {
+                    trace!(self.shared_data.logger(), "New external packet"; "data" => ?response, "response"=> true);
                     self.route_bnet_response(response)?;
                 }
                 Err(packet) => packet_opt = Some(packet),
@@ -259,7 +260,8 @@ where
         }
 
         // We have a potentially malformed packet if we reach this statement.
-        let _ = packet_opt.take();
+        let unknown = packet_opt.take();
+        trace!(self.shared_data.logger(), "New external packet"; "data" => ?unknown, "unknown"=> true);
         Err(RPCError::NoRoute)?
     }
 
@@ -269,8 +271,12 @@ where
             .route_packet(&mut self.shared_data, request);
 
         match route_result? {
-            ProcessResult::Immediate(decision) => self.handle_bnet_response_decision(decision),
+            ProcessResult::Immediate(decision) => {
+                trace!(self.shared_data.logger(), "Response"; "immediate" => true);
+                self.handle_bnet_response_decision(decision);
+            }
             ProcessResult::NotReady(blocking_operation) => {
+                trace!(self.shared_data.logger(), "Response"; "blocking" => true);
                 // If this method fails, the current operation will be dropped.
                 // The wrapping logic MUST make sure nothing gets dropped!
                 if let Err(_) =
@@ -290,8 +296,12 @@ where
             .route_packet(&mut self.shared_data, response);
 
         match route_result? {
-            ProcessResult::Immediate(decision) => self.handle_bnet_response_decision(decision),
+            ProcessResult::Immediate(decision) => {
+                trace!(self.shared_data.logger(), "Response"; "immediate" => true);
+                self.handle_bnet_response_decision(decision);
+            }
             ProcessResult::NotReady(blocking_operation) => {
+                trace!(self.shared_data.logger(), "Response"; "blocking" => true);
                 // If this method fails, the current operation will be dropped.
                 // The wrapping logic MUST make sure nothing gets dropped!
                 if let Err(_) =
@@ -307,11 +317,15 @@ where
 
     fn handle_bnet_response_decision(&mut self, decision: RouteDecision<Response<BNetPacket>>) {
         match decision {
-            RouteDecision::Stop => {}
+            RouteDecision::Stop => {
+                trace!(self.shared_data.logger(), "Response decision"; "stop" => true);
+            }
             RouteDecision::Out(packet) => {
+                trace!(self.shared_data.logger(), "Response decision"; "out" => true);
                 self.queued_responses.push_back(packet);
             }
             RouteDecision::Forward(packet) => {
+                trace!(self.shared_data.logger(), "Response decision"; "forward" => true);
                 unimplemented!();
             }
         };
