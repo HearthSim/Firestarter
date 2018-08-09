@@ -46,7 +46,7 @@ pub trait RPCRouter {
         &mut self,
         method: &Self::Method,
         shared_data: &mut Self::SharedData,
-        packet: &Self::Request,
+        packet: Self::Request,
     ) -> RPCResult<ProcessResult<Self::Response>>;
 }
 
@@ -59,7 +59,7 @@ where
     fn route_packet(
         &mut self,
         shared_data: &mut Data,
-        packet: &Request,
+        packet: Request,
     ) -> RPCResult<ProcessResult<Response>>;
 }
 
@@ -73,11 +73,7 @@ mod hlist_extensions {
         Request: RPCPacket,
         Response: RPCPacket,
     {
-        fn route_packet(
-            &mut self,
-            _: &mut Data,
-            _: &Request,
-        ) -> RPCResult<ProcessResult<Response>> {
+        fn route_packet(&mut self, _: &mut Data, _: Request) -> RPCResult<ProcessResult<Response>> {
             Err(RPCError::NoRoute)
         }
     }
@@ -94,9 +90,9 @@ mod hlist_extensions {
         fn route_packet(
             &mut self,
             shared_data: &mut Data,
-            packet: &Request,
+            packet: Request,
         ) -> RPCResult<ProcessResult<Response>> {
-            let will_handle = X::can_accept(packet);
+            let will_handle = X::can_accept(&packet);
             if let Ok(method) = will_handle {
                 return X::handle(&mut self.head, &method, shared_data, packet);
             }

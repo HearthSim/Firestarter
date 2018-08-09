@@ -4,6 +4,7 @@
 //! packets to these services.
 
 use std::collections::VecDeque;
+use std::default::Default;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
@@ -16,8 +17,11 @@ use protocol::bnet::frame::{BNetCodec, BNetPacket};
 use protocol::bnet::session::SessionError;
 use rpc::router::{ProcessResult, RPCHandling, RouteDecision};
 use rpc::system::{RPCError, RPCResult, ServiceBinderGenerator};
-use rpc::transport::{Never, Request, Response};
+use rpc::transport::{Request, Response};
 use server::lobby::ServerShared;
+
+type BNetBlockinOperation =
+    Box<Future<Item = RouteDecision<Response<BNetPacket>>, Error = RPCError> + Send>;
 
 #[derive(Debug)]
 /// Structure containing important data related to the active client session.
@@ -27,6 +31,22 @@ pub struct ClientSharedData {
 }
 
 impl ClientSharedData {
+    /// Creates a new instance of data which is shared accross all services.
+    pub fn new(server_shared: Arc<Mutex<ServerShared>>, logger: slog::Logger) -> Self {
+        ClientSharedData {
+            server_shared,
+            logger,
+        }
+    }
+
+    /// Creates a stub instance with only an active logger.
+    pub fn stub(logger: slog::Logger) -> Self {
+        ClientSharedData {
+            server_shared: Arc::new(Mutex::new(ServerShared::default())),
+            logger: logger,
+        }
+    }
+
     /// Retrieve the logger instance for this session.
     pub fn logger(&self) -> &slog::Logger {
         &self.logger
@@ -37,14 +57,12 @@ impl ClientSharedData {
 pub struct RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Response<BNetPacket>>,
 {
     bnet_request_handlers: BNReq,
     bnet_response_handlers: BNRes,
 
-    bnet_blocking_buffer: Option<BNetPacket>,
-    bnet_blocked_response:
-        Option<Box<Future<Item = RouteDecision<Response<BNetPacket>>, Error = RPCError> + Send>>,
+    bnet_blocking_ops_queue: [Option<BNetBlockinOperation>; 2],
     queued_responses: VecDeque<Response<BNetPacket>>,
 
     codec: Framed<TcpStream, BNetCodec>,
@@ -54,44 +72,32 @@ where
 impl<BNReq, BNRes> Future for RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Response<BNetPacket>>,
 {
     type Item = ();
     type Error = SessionError;
 
     fn poll(&mut self) -> Poll<(), SessionError> {
         // Poll blocked future.
-        match self.poll_blocking_operation()? {
-            Async::Ready(()) => {
-                // We're free to continue because no operation is pending.
-            }
-            Async::NotReady => {
-                // The idea is to process maximum one blocking operation at a time
-                // while allowing non-blocking operations to get through, so we keep
-                // reading from the socket..
-                // It's possible a next packet will be blocking as well, in that case
-                // we buffer that specific packet and pause this entire session if that
-                // buffer is full!
-                //
-                // Note: This concept has the implicit requirement that building a future
-                // is cheap or can be optimized away when we cannot accept another blocking
-                // operation.
-                if self.bnet_blocking_buffer.is_some() {
-                    return Ok(Async::NotReady);
-                }
-            }
-        };
+        self.process_blocking_operations()?;
 
-        // Process next blocking packet.
-        if self.bnet_blocked_response.is_none() {
-            if let Some(packet) = self.bnet_blocking_buffer.take() {
-                self.process_external_bnet(packet)?;
-            }
+        // The idea is to process maximum one blocking operation at a time
+        // while allowing non-blocking operations to get through, so we keep
+        // reading from the socket..
+        // It's possible a next packet will be blocking as well, in that case
+        // we buffer that specific packet and pause this entire session if that
+        // buffer is full!
+        //
+        // Note: This concept has the implicit requirement that building a future
+        // is cheap or can be optimized away when we cannot accept another blocking
+        // operation.
+        if !Self::queue_room_available(&self.bnet_blocking_ops_queue) {
+            return Ok(Async::NotReady);
         }
 
         // Only pull new packets if there is room to store potential blocking ones.
         'receive: loop {
-            if self.bnet_blocking_buffer.is_none() {
+            if Self::queue_room_available(&self.bnet_blocking_ops_queue) {
                 if let Async::Ready(bnet_packet_opt) = self.codec.poll()? {
                     match bnet_packet_opt {
                         None => {
@@ -153,7 +159,7 @@ where
 impl<BNReq, BNRes> RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Response<BNetPacket>>,
 {
     /// Creates a new object for routing packets between provided services.
     fn new(
@@ -166,8 +172,7 @@ where
             bnet_request_handlers,
             bnet_response_handlers,
 
-            bnet_blocking_buffer: None,
-            bnet_blocked_response: None,
+            bnet_blocking_ops_queue: Default::default(),
             queued_responses: VecDeque::with_capacity(2),
 
             codec,
@@ -175,21 +180,58 @@ where
         }
     }
 
-    fn poll_blocking_operation(&mut self) -> Poll<(), SessionError> {
-        let mut ready_decision = None;
-        if let Some(blocked) = self.bnet_blocked_response.as_mut() {
-            ready_decision = Some(try_ready!(blocked.poll()));
-        }
+    fn queue_room_available<'me, I, T>(storage: I) -> bool
+    where
+        I: IntoIterator<Item = &'me Option<T>>,
+        T: 'me,
+    {
+        storage.into_iter().filter(|x| Option::is_none(x)).count() > 0
+    }
 
-        // Seperate block is necessary because we cannot take out the future
-        // while holding a borrow to it.
-        // Until NLL arrives.
-        if let Some(decision) = ready_decision {
-            let _ = self.bnet_blocked_response.take();
+    fn push_to_queue<'me, I, T>(storage: I, item: T) -> Result<(), T>
+    where
+        I: IntoIterator<Item = &'me mut Option<T>>,
+        T: 'me,
+    {
+        match storage
+            .into_iter()
+            .skip_while(|x| Option::is_none(x))
+            .next()
+        {
+            Some(open_spot) => {
+                *open_spot = Some(item);
+                return Ok(());
+            }
+            None => return Err(item),
+        };
+    }
+
+    fn process_blocking_operations(&mut self) -> Result<(), SessionError> {
+        // Poll all blocking operations.
+        let poll_results: Result<Vec<(_, _)>, _> = self
+            .bnet_blocking_ops_queue
+            .iter_mut()
+            .enumerate()
+            .filter(|(idx, x)| Option::is_some(x))
+            .map(|(idx, op)| match Future::poll(op.as_mut().unwrap()) {
+                Ok(data) => Ok((idx, data)),
+                Err(e) => Err(e),
+            })
+            .collect();
+
+        // Remove all operations which are ready.
+        // Also process the data results.
+        let poll_data = poll_results?.into_iter().filter_map(|(idx, x)| match x {
+            Async::Ready(x) => Some((idx, x)),
+            Async::NotReady => None,
+        });
+
+        for (idx, decision) in poll_data {
+            let _ = self.bnet_blocking_ops_queue.get_mut(idx).take();
             self.handle_bnet_response_decision(decision);
         }
 
-        Ok(Async::Ready(()))
+        Ok(())
     }
 
     fn process_external_bnet(&mut self, packet: BNetPacket) -> Result<(), SessionError> {
@@ -221,24 +263,18 @@ where
     fn route_bnet_request(&mut self, request: Request<BNetPacket>) -> RPCResult<()> {
         let route_result = self
             .bnet_request_handlers
-            .route_packet(&mut self.shared_data, &request);
+            .route_packet(&mut self.shared_data, request);
 
         match route_result? {
             ProcessResult::Immediate(decision) => self.handle_bnet_response_decision(decision),
             ProcessResult::NotReady(blocking_operation) => {
-                if self.bnet_blocked_response.is_none() {
-                    self.bnet_blocked_response = Some(blocking_operation);
-                    return Ok(());
+                // If this method fails, the current operation will be dropped.
+                // The wrapping logic MUST make sure nothing gets dropped!
+                if let Err(_) =
+                    Self::push_to_queue(&mut self.bnet_blocking_ops_queue, blocking_operation)
+                {
+                    unreachable!();
                 }
-
-                if self.bnet_blocking_buffer.is_none() {
-                    self.bnet_blocking_buffer = Some(request.unwrap());
-                    return Ok(());
-                }
-
-                // If we reach this point the current packet and operation will be dropped.
-                // The wrapping logic MUST make sure we don't get to this point!
-                unreachable!();
             }
         };
 
@@ -248,43 +284,22 @@ where
     fn route_bnet_response(&mut self, response: Response<BNetPacket>) -> RPCResult<()> {
         let route_result = self
             .bnet_response_handlers
-            .route_packet(&mut self.shared_data, &response);
+            .route_packet(&mut self.shared_data, response);
 
         match route_result? {
-            ProcessResult::Immediate(decision) => self.handle_never_response_decision(decision),
+            ProcessResult::Immediate(decision) => self.handle_bnet_response_decision(decision),
             ProcessResult::NotReady(blocking_operation) => {
-                if self.bnet_blocked_response.is_none() {
-                    let mapped_future = blocking_operation.map(|result| match result {
-                        RouteDecision::Stop => RouteDecision::Stop,
-                        RouteDecision::Out(_) => RouteDecision::Out(Response::None),
-                        RouteDecision::Forward(data) => RouteDecision::Forward(data),
-                    });
-                    self.bnet_blocked_response = Some(Box::new(mapped_future));
-                    return Ok(());
+                // If this method fails, the current operation will be dropped.
+                // The wrapping logic MUST make sure nothing gets dropped!
+                if let Err(_) =
+                    Self::push_to_queue(&mut self.bnet_blocking_ops_queue, blocking_operation)
+                {
+                    unreachable!();
                 }
-
-                if self.bnet_blocking_buffer.is_none() {
-                    self.bnet_blocking_buffer = Some(response.unwrap());
-                    return Ok(());
-                }
-
-                // If we reach this point the current packet and operation will be dropped.
-                // The wrapping logic MUST make sure we don't get to this point!
-                unreachable!();
             }
         };
 
         Ok(())
-    }
-
-    fn handle_never_response_decision(&mut self, decision: RouteDecision<Never>) {
-        match decision {
-            RouteDecision::Stop => {}
-            RouteDecision::Out(_) => {}
-            RouteDecision::Forward(packet) => {
-                unimplemented!();
-            }
-        }
     }
 
     fn handle_bnet_response_decision(&mut self, decision: RouteDecision<Response<BNetPacket>>) {
@@ -303,13 +318,12 @@ where
 impl<BNReq, BNRes> fmt::Debug for RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>> + fmt::Debug,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never> + fmt::Debug,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Response<BNetPacket>> + fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("RoutingLogistic")
             .field("bnet_request_handlers", &self.bnet_request_handlers)
             .field("bnet_response_handlers", &self.bnet_response_handlers)
-            .field("bnet_blocking_buffer", &self.bnet_blocking_buffer)
             .field("queued_responses", &self.queued_responses)
             .field("codec", &self.codec)
             .field("shared_data", &self.shared_data)

@@ -73,9 +73,9 @@ fn handshake_operation(
     session
         .read_request()
         .and_then(|(session, request)| {
-            lightweight_session_connect(&session, &request)
-                .map_err(Into::into)
+            lightweight_session_connect(&session, request)
                 .map(move |response| (session, response))
+                .map_err(Into::into)
                 .into_future()
         })
         .and_then(|(session, response)| session.send_response(response))

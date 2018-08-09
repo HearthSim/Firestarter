@@ -1,7 +1,8 @@
 //! Service handling RPC requests/responses that manipulate the connection between
 //! client and server.
 
-use bytes::Bytes;
+use bytes::BytesMut;
+use prost::Message;
 
 use protocol::bnet::frame::BNetPacket;
 use protocol::bnet::router::ClientSharedData;
@@ -97,14 +98,12 @@ impl RPCRouter for ConnectionService {
         &mut self,
         method: &Methods,
         data: &mut ClientSharedData,
-        packet: &Request<BNetPacket>,
+        packet: Request<BNetPacket>,
     ) -> RPCResult<ProcessResult<Response<BNetPacket>>> {
-        let packet = packet.as_ref().unwrap();
-        let payload = packet.body().clone();
         let state = &mut self.0;
 
         match method {
-            Methods::Connect => op_connect(state, payload)
+            Methods::Connect => op_connect(state, data, packet)
                 .map(RouteDecision::Out)
                 .map(ProcessResult::Immediate),
             _ => unimplemented!(),
@@ -132,15 +131,105 @@ fn validate_connect_request<'a>(packet: &'a Request<BNetPacket>) -> RPCResult<()
 }
 
 /// Attempts to perform the connect operation on a lightweight client session.
-pub fn lightweight_session_connect<'a>(
+pub fn lightweight_session_connect(
     session: &LightWeightSession,
-    packet: &'a Request<BNetPacket>,
+    packet: Request<BNetPacket>,
 ) -> RPCResult<Response<BNetPacket>> {
-    let payload = packet.as_ref().unwrap().body().clone();
-    let _ = validate_connect_request(packet)?;
-    op_connect(&mut Inner {}, payload)
+    let _ = validate_connect_request(&packet)?;
+    let logger = session.logger().clone();
+    op_connect(&mut Inner {}, &mut ClientSharedData::stub(logger), packet)
 }
 
-fn op_connect(state: &mut Inner, payload: Bytes) -> RPCResult<Response<BNetPacket>> {
-    unimplemented!()
+fn op_connect(
+    state: &mut Inner,
+    shared: &mut ClientSharedData,
+    request: Request<BNetPacket>,
+) -> RPCResult<Response<BNetPacket>> {
+    use chrono::Local;
+    use firestarter_generated::proto::bnet::protocol::connection::{
+        BindRequest, BindResponse, ConnectRequest, ConnectResponse,
+    };
+    use firestarter_generated::proto::bnet::protocol::ProcessId;
+    use service::bnet::service_info::{SERVICES_EXPORTED_BINDING, SERVICES_IMPORTED_BINDING};
+
+    let payload = request.as_ref().unwrap().body().clone();
+    let message = ConnectRequest::decode(payload)?;
+    trace!(shared.logger(), "Handshake request"; "message" => ?message);
+
+    let bind_request = message.bind_request;
+    if bind_request.is_none() {
+        Err(RPCError::InvalidRequest {
+            service_name: ConnectionService::get_name(),
+            method_id: Methods::Connect as u32,
+        })?;
+    }
+
+    // This destructuring is probably difficult to understand.
+    // We're receiving the BindRequest from the client perspective;
+    // this means that any service that is "imported" is EXPORTED by us.
+    // Analogue for "exported", which is IMPORTED by us.
+    //
+    // The comments below will explain building a response in the
+    // perspective of the client.
+    let BindRequest {
+        imported_service_hash: exported_services,
+        exported_service: imported_services,
+    } = bind_request.unwrap();
+
+    // Match all imported service IDs with our info.
+    let match_imported_services = imported_services.into_iter().all(|s| {
+        // Find the service for the provided hash.
+        let known_import_opt = SERVICES_IMPORTED_BINDING.get(&s.hash).map(|m| (*m) as u32);
+        if let Some(id) = known_import_opt {
+            if id == s.id {
+                return true;
+            }
+        }
+        false
+    });
+    if !match_imported_services {
+        Err(RPCError::InvalidRequest {
+            service_name: ConnectionService::get_name(),
+            method_id: Methods::Connect as u32,
+        })?;
+    }
+
+    // Build a mapping for our exported services according to the service info.
+    let service_bindings: Vec<u32> = exported_services
+        .into_iter()
+        .map(|hash| {
+            SERVICES_EXPORTED_BINDING
+                .get(&hash)
+                .map(|m| (*m) as u32)
+                .unwrap_or(0)
+        })
+        .collect();
+    let bind_response = BindResponse {
+        imported_service_id: service_bindings,
+    };
+
+    // Start collecting all data into a response.
+    let time = Local::now().timestamp();
+    let precise_time = Local::now().timestamp_nanos();
+    let response_message = ConnectResponse {
+        server_id: ProcessId {
+            label: 3868510373,
+            epoch: time as u32,
+        },
+        client_id: Some(ProcessId {
+            label: 1255760,
+            epoch: time as u32,
+        }),
+        bind_result: Some(0),
+        bind_response: Some(bind_response),
+        server_time: Some(precise_time as u64),
+        ..Default::default()
+    };
+
+    trace!(shared.logger(), "Handshake response ready"; "message" => ?response_message);
+    let mut body = BytesMut::with_capacity(response_message.encoded_len());
+    response_message.encode(&mut body).unwrap();
+    let body = body.freeze();
+
+    Ok(Response::from_request(request, body))
 }

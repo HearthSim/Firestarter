@@ -35,39 +35,25 @@ impl<Packet> Request<Packet> {
 
 #[derive(Debug)]
 /// Represents an RPC response.
-pub enum Response<Packet> {
-    /// Represents a response with the provided packet.
-    Some(Packet),
-    /// Represents an empty response.
-    None,
-}
+pub struct Response<Packet>(Packet);
 
 impl<Packet> RPCPacket for Response<Packet> {}
 
 impl<Packet> Response<Packet> {
     /// Wraps a packet into a response.
     pub fn new(data: Packet) -> Self {
-        Response::Some(data)
+        Response(data)
     }
 
     /// Take the original packet out of the Response wrapper.
-    ///
-    /// # Panics
-    /// This method panics if the variant is Response::None!
     pub fn unwrap(self) -> Packet {
-        match self {
-            Response::Some(data) => data,
-            _ => panic!("Trying to unwrap nothing!"),
-        }
+        self.0
     }
 
     /// Create a response with a reference to the containing
     /// packet.
     pub fn as_ref(&self) -> Response<&Packet> {
-        match self {
-            Response::Some(ref data) => Response::Some(data),
-            Response::None => Response::None,
-        }
+        Response(&self.0)
     }
 }
 

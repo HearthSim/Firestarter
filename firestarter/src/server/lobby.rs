@@ -167,7 +167,7 @@ impl LobbyServer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// Structure containing data accessible to each client handler.
 pub struct ServerShared {}
 

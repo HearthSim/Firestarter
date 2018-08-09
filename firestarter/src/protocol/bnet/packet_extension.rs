@@ -24,4 +24,9 @@ impl Response<BNetPacket> {
     pub fn from_request(request: Request<BNetPacket>, body: Bytes) -> Self {
         unimplemented!()
     }
+
+    /// Builds an empty response packet for the given request.
+    pub fn empty(request: Request<BNetPacket>) -> Self {
+        unimplemented!()
+    }
 }
