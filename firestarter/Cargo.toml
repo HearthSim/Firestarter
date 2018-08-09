@@ -34,6 +34,7 @@ firestarter-generated = {path = "../firestarter_generated"}
 typed-builder = "=0.1.1"
 lazy_static = "=1.0.2"
 maplit = "=1.0.1"
+num-traits = "=0.2.5"
 
 # Logging infrastructure
 slog = ">=2.3.2, <2.4.0"

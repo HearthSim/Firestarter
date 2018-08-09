@@ -2,6 +2,7 @@
 //! client and server.
 
 use bytes::BytesMut;
+use num_traits::AsPrimitive;
 use prost::Message;
 
 use protocol::bnet::frame::BNetPacket;
@@ -10,6 +11,8 @@ use protocol::bnet::session::LightWeightSession;
 use rpc::router::{ProcessResult, RPCRouter, RouteDecision};
 use rpc::system::{RPCError, RPCResult, RPCService, ServiceBinder, ServiceHash};
 use rpc::transport::{Request, Response};
+use service::bnet::service_info::ExportedServiceID;
+use service::bnet::util::default_accept_check;
 
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
@@ -31,6 +34,12 @@ pub enum Methods {
     RequestDisconnect = 7,
 }
 
+impl AsPrimitive<u32> for Methods {
+    fn as_(self) -> u32 {
+        self as u32
+    }
+}
+
 struct Inner {}
 
 /// Service handling RPC requests/responses that manipulate the connection between
@@ -44,6 +53,10 @@ impl RPCService for ConnectionService {
 
     fn get_hash() -> ServiceHash {
         ServiceHash::from_name(Self::get_name())
+    }
+
+    fn get_id() -> u32 {
+        ExportedServiceID::ConnectionService as u32
     }
 
     fn get_name() -> &'static str {
@@ -80,25 +93,7 @@ impl RPCRouter for ConnectionService {
     fn can_accept(packet: &Request<BNetPacket>) -> RPCResult<&'static Methods> {
         // EXPLAIN: Asserted Request<&X> contains exactly one packet.
         let packet_header = packet.as_ref().unwrap().header();
-        let packet_service_hash = packet_header.service_id;
-        let packet_method_id = packet_header.method_id.ok_or(RPCError::UnknownRequest {
-            service_name: Self::get_name(),
-        })?;
-
-        if packet_service_hash != ConnectionService::get_hash().as_uint() {
-            return Err(RPCError::UnknownRequest {
-                service_name: Self::get_name(),
-            });
-        }
-
-        ConnectionService::get_methods()
-            .iter()
-            .filter(|&(&method, _)| method as u32 == packet_method_id)
-            .map(|&(method, _)| method)
-            .next()
-            .ok_or(RPCError::UnknownRequest {
-                service_name: Self::get_name(),
-            })
+        default_accept_check::<Self>(packet_header)
     }
 
     fn handle(

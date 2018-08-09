@@ -249,39 +249,43 @@ where
     }
 
     fn process_external_bnet(&mut self, packet: BNetPacket) -> Result<(), SessionError> {
+        trace!(self.shared_data.logger(), "external packet"; "data" => ?packet);
+
         let mut packet_opt = Some(packet);
         if let Some(packet) = packet_opt.take() {
             match packet.try_as_request() {
                 Ok(request) => {
-                    trace!(self.shared_data.logger(), "New external packet"; "data" => ?request, "request"=> true);
+                    trace!(self.shared_data.logger(), "Parsed external packet"; "request"=> true);
                     self.route_bnet_request(request)?;
+                    return Ok(());
                 }
-                Err(packet) => packet_opt = Some(packet),
+                Err(failed) => packet_opt = Some(failed),
             };
         }
 
         if let Some(packet) = packet_opt.take() {
             match packet.try_as_response() {
                 Ok(response) => {
-                    trace!(self.shared_data.logger(), "New external packet"; "data" => ?response, "response"=> true);
+                    trace!(self.shared_data.logger(), "Parsed external packet"; "response"=> true);
                     self.route_bnet_response(response)?;
+                    return Ok(());
                 }
-                Err(packet) => packet_opt = Some(packet),
+                Err(failed) => packet_opt = Some(failed),
             };
         }
 
         // We have a potentially malformed packet if we reach this statement.
         let unknown = packet_opt.take();
-        trace!(self.shared_data.logger(), "New external packet"; "data" => ?unknown, "unknown"=> true);
+        error!(self.shared_data.logger(), "Parsed external packet"; "unknown"=> true);
         Err(RPCError::NoRoute)?
     }
 
     fn route_bnet_request(&mut self, request: Request<BNetPacket>) -> RPCResult<()> {
         let route_result = self
             .bnet_request_handlers
-            .route_packet(&mut self.shared_data, request);
+            .route_packet(&mut self.shared_data, request)?;
 
-        match route_result? {
+        match route_result {
             ProcessResult::Immediate(decision) => {
                 trace!(self.shared_data.logger(), "Response"; "immediate" => true);
                 self.handle_bnet_response_decision(decision);
@@ -304,9 +308,9 @@ where
     fn route_bnet_response(&mut self, response: Response<BNetPacket>) -> RPCResult<()> {
         let route_result = self
             .bnet_response_handlers
-            .route_packet(&mut self.shared_data, response);
+            .route_packet(&mut self.shared_data, response)?;
 
-        match route_result? {
+        match route_result {
             ProcessResult::Immediate(decision) => {
                 trace!(self.shared_data.logger(), "Response"; "immediate" => true);
                 self.handle_bnet_response_decision(decision);
@@ -362,9 +366,10 @@ where
 mod default {
     use super::*;
 
+    use service::bnet::authentication_server::AuthenticationServer;
     use service::bnet::connection_service::ConnectionService;
 
-    type DBNReq = Hlist![ConnectionService,];
+    type DBNReq = Hlist![ConnectionService, AuthenticationServer];
     type DBNRes = Hlist![];
 
     impl RoutingLogistic<DBNReq, DBNRes> {

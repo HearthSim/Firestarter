@@ -1,5 +1,7 @@
 //! Important types for defining an RPC service.
 
+use num_traits::AsPrimitive;
+
 use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
@@ -36,12 +38,15 @@ pub trait RPCService {
     ///
     /// Most of the time this is an enumeration, but that requirement cannot
     /// be expressed currently.
-    type Method: 'static + Sized;
+    type Method: AsPrimitive<u32> + 'static + Sized;
 
     /// Retrieve the unique hash of this service.
     ///
     /// The hash can be used to send requests to this service.
     fn get_hash() -> ServiceHash;
+
+    /// Retrieves the ordinal to which this service is bound.
+    fn get_id() -> u32;
 
     /// Retrieve the name of this services.
     fn get_name() -> &'static str;

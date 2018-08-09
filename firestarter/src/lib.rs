@@ -27,6 +27,7 @@ extern crate frunk;
 
 extern crate bytes;
 extern crate chrono;
+extern crate num_traits;
 extern crate prost;
 extern crate slog_stdlog;
 extern crate tokio;
