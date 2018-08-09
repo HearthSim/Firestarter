@@ -4,14 +4,9 @@
 //! packets to these services.
 
 use std::collections::VecDeque;
-use std::default::Default;
 use std::fmt;
-use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
-use bytes::Bytes;
-use frunk::HNil;
-use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
 use slog;
 use tokio_codec::Framed;
@@ -21,7 +16,6 @@ use protocol::bnet::frame::{BNetCodec, BNetPacket};
 use protocol::bnet::session::SessionError;
 use rpc::router::{ProcessResult, RPCHandling, RouteDecision};
 use rpc::system::{RPCError, RPCResult, ServiceBinderGenerator};
-use rpc::transport::internal::InternalPacket;
 use rpc::transport::{Never, Request, Response};
 use server::lobby::ServerShared;
 
@@ -67,8 +61,10 @@ where
 
     fn poll(&mut self) -> Poll<(), SessionError> {
         // Poll blocked future.
-        let blocked_operation_result = match self.poll_blocking_operation()? {
-            Async::Ready(()) => {}
+        match self.poll_blocking_operation()? {
+            Async::Ready(()) => {
+                // We're free to continue because no operation is pending.
+            }
             Async::NotReady => {
                 // The idea is to process maximum one blocking operation at a time
                 // while allowing non-blocking operations to get through, so we keep
@@ -76,6 +72,10 @@ where
                 // It's possible a next packet will be blocking as well, in that case
                 // we buffer that specific packet and pause this entire session if that
                 // buffer is full!
+                //
+                // Note: This concept has the implicit requirement that building a future
+                // is cheap or can be optimized away when we cannot accept another blocking
+                // operation.
                 if self.bnet_blocking_buffer.is_some() {
                     return Ok(Async::NotReady);
                 }
@@ -85,7 +85,7 @@ where
         // Process next blocking packet.
         if self.bnet_blocked_response.is_none() {
             if let Some(packet) = self.bnet_blocking_buffer.take() {
-                let result = self.process_external_bnet(packet)?;
+                self.process_external_bnet(packet)?;
             }
         }
 
@@ -213,6 +213,8 @@ where
             };
         }
 
+        // We have a potentially malformed packet if we reach this statement.
+        let _ = packet_opt.take();
         Err(RPCError::NoRoute)?
     }
 

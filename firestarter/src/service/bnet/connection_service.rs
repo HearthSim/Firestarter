@@ -2,8 +2,6 @@
 //! client and server.
 
 use bytes::Bytes;
-use futures::future::lazy;
-use futures::prelude::*;
 
 use protocol::bnet::frame::BNetPacket;
 use protocol::bnet::router::ClientSharedData;
@@ -123,7 +121,7 @@ fn validate_connect_request<'a>(packet: &'a Request<BNetPacket>) -> RPCResult<()
 
     let result = match method_test {
         Ok(method) if method == (Methods::Connect as u32) => Ok(()),
-        Ok(method) => Err(RPCError::InvalidRequest {
+        Ok(_) => Err(RPCError::InvalidRequest {
             service_name: ConnectionService::get_name(),
             method_id: Methods::Connect as u32,
         }),

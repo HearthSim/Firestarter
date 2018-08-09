@@ -1,9 +1,5 @@
 //! Important types for defining an RPC service.
-use bytes::Bytes;
-use failure::Error;
-use futures::prelude::*;
 
-use rpc::transport::{RPCPacket, Request, Response};
 use rpc::util::fnv_hash_bytes;
 
 pub use self::error::*;
@@ -53,7 +49,6 @@ pub trait ServiceBinderGenerator {
 mod hlist_extensions {
     use super::*;
 
-    use frunk::prelude::HList;
     use frunk::{HCons, HNil};
 
     impl ServiceBinderGenerator for HNil {

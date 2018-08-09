@@ -1,9 +1,6 @@
 //! Extension traits for [`Frunk`]s Heterogeneous List type.
 
-use frunk::prelude::HList;
-use frunk::{HCons, HNil};
-
-use rpc::system::RPCService;
+use frunk::HNil;
 
 /// Visitor idiom which can be applied to a container.
 ///
@@ -30,7 +27,7 @@ impl<'me, Service> Visitor<'me, Service> for HNil
 where
     Service: 'me + ?Sized,
 {
-    fn visit<F>(&'me self, closure: F)
+    fn visit<F>(&'me self, _: F)
     where
         F: Fn(&'me Service) -> (),
     {
@@ -91,7 +88,7 @@ where
         // Do nothing
     }
 */
-    unsafe fn gather<F>(&'me self, collector: &'me mut [Option<Result>], closure: F)
+    unsafe fn gather<F>(&'me self, _: &'me mut [Option<Result>], _: F)
     where
         F: for<'collect> Fn(&'me Service, &'collect mut Option<Result>) -> (),
     {

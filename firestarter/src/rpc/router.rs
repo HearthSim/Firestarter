@@ -1,7 +1,6 @@
 //! Important types for defining a router type which can process
 //! RPC data.
 
-use bytes::Bytes;
 use futures::prelude::*;
 
 use rpc::system::{RPCError, RPCResult};
@@ -67,7 +66,6 @@ where
 mod hlist_extensions {
     use super::*;
 
-    use frunk::prelude::HList;
     use frunk::{HCons, HNil};
 
     impl<Data, Request, Response> RPCHandling<Data, Request, Response> for HNil

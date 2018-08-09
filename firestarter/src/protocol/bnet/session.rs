@@ -1,6 +1,5 @@
 //! Module with types that represent a client session.
 
-use futures::future::{lazy, FutureResult};
 use futures::prelude::*;
 use futures::Stream;
 use slog;
@@ -110,7 +109,7 @@ impl LightWeightSession {
         let codec = codec.expect("Codec contract invalid");
         let router = RoutingLogistic::default_handlers(server_shared, codec, logger);
         let session_future = ClientSession::new(address, router);
-        lazy(|| session_future)
+        session_future
     }
 }
 

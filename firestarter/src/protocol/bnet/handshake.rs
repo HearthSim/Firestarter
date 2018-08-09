@@ -3,7 +3,6 @@
 //! Clients must succesfully complete the handshake before the server allocates memory
 //! for a new session.
 
-use futures::future::lazy;
 use futures::prelude::*;
 use slog;
 use std::io;
@@ -16,7 +15,6 @@ use tokio_timer::Deadline;
 use protocol::bnet::frame::BNetCodec;
 use protocol::bnet::session::LightWeightSession;
 use protocol::bnet::session::SessionError;
-use rpc::transport::Response;
 use server::lobby::ServerShared;
 
 pub use self::error::*;
