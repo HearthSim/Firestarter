@@ -29,7 +29,7 @@ const _DEFAULT_ERROR_TIMEOUT: Duration = Duration::from_millis(100);
 /// depends on your OS.
 const _DEFAULT_MAX_CONNECTIONS: usize = 1000;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy, TypedBuilder)]
 /// Object for defining how a socket binding failure must be resolved.
 pub struct BindRetryConfig {
     /// Allowed amount of retries before returning an error.

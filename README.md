@@ -11,9 +11,9 @@ Getting the server built and running also requires few manual steps.
 
 ## Dependancies
 
-- The Rust compiler toolchain.
+- The stable Rust compiler toolchain.
   Download Rustup from [the official website](https://www.rust-lang.org/en-US/install.html). Execute it in your command prompt.
-  By default Rustup will install itself, the latest stable Rust compiler and tools like Cargo (Rust's package manager).
+  By default Rustup will install itself, the latest STABLE Rust compiler and tools like Cargo (Rust's package manager).
   Enable the option to use Rust from the PATH environment variable!
 
 ## Build
@@ -24,27 +24,40 @@ These steps suppose the Rust binaries are accessible trough the PATH environment
 - Open the downloaded repository within your command prompt;
 - Execute the command `cargo test`, all framework components will be built and tests are ran.
     All tests should pass!
-- Execute the command `cargo build --release --bin vanilla-server`, this will build a server executable in release mode.
-    The executable can be found within the folder `target/release/`.
+- Change work directory into the Firestarter library crate with the command `cd ./firestarter`;
+- Execute the command `cargo build --release --bin vanilla-server --features="bin"`, this will build a server executable in release mode.
+    The executable can be found within the folder `target/release/` from the repository root.
 
 ## Run
 
+Running the framework can happen in two ways.
+
+- In-tree, using `cd ./firestarter && cargo run --release --bin vanilla-server --features="bin"`;
+- Distributed, having downloaded an archive containing the executable and runtime dependancies. Run the executable, preferrably
+from a command prompt.
+
+There are optional features which can be enabled based on preference or context. These features are by default opt-in and can be
+enabled by augmenting the value of the `--features` flag; e.g. `--features="bin extended-logging debug-log-everything"`.
+
 ### Environment data
 
-[ ] Setup environment data retrieval
-[ ] Setup .env file
-[ ] Explain ENV file+keys in README
+In-tree Firestarter binaries are compiled with the 'dotenv' crate, which loads configuration values from a special environment file.
+It looks for a file exactly named `.env` located somewhere within the current executing directory or one of its parent directies.
+You can look at the file `.env-example` at the root of this repository for more explanation about its syntax and configurable values.
+
+- `SERVER_ADDRESS`
+  This declares to which address and port the server should bind.
+
+- `LOG_FILEPATH`
+  This declares the path where a logfile will be created and updates while the server is running.
 
 Altough the project will use defaults for missing environment data, it's recommended that you create a file specifically for your
 system.
 
-Running the framework can happen in two ways.
-
-- In-tree, using `cargo run --release --bin vanilla-server`;
-- Distributed, having downloaded an archive containing the executable and runtime dependancies. Run the executable, preferrably
-from a command prompt.
-
 # Contributing
+
+> It's recommended to use `cargo test` and `cd ./firestarter && cargo run --bin vanilla-server --features="bin debug-log-everything"`
+> to test our your changes.
 
 ## Guidelines
 
