@@ -135,6 +135,7 @@ where
         let mut has_written = false;
         let mut response_overflow = None;
         while let Some(response_packet) = self.queued_responses.pop_front() {
+            // EXPLAIN: Asserted Response<X> contains exactly one packet.
             match self.codec.start_send(response_packet.unwrap())? {
                 AsyncSink::Ready => has_written = true,
                 AsyncSink::NotReady(overflow) => {
@@ -225,6 +226,7 @@ where
             .iter_mut()
             .enumerate()
             .filter(|(idx, x)| Option::is_some(x))
+            // EXPLAIN: Asserted Option contains Some by filtering.
             .map(|(idx, op)| match Future::poll(op.as_mut().unwrap()) {
                 Ok(data) => Ok((idx, data)),
                 Err(e) => Err(e),

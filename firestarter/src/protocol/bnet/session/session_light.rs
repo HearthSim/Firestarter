@@ -49,6 +49,10 @@ impl LightWeightSession {
         &self.logger
     }
 
+    fn take_codec(&mut self) -> Framed<TcpStream, BNetCodec> {
+        self.codec.take().expect("Codec contract invalidated")
+    }
+
     fn reinstall_codec(&mut self, codec: Framed<TcpStream, BNetCodec>) {
         self.codec = Some(codec);
     }
@@ -57,7 +61,7 @@ impl LightWeightSession {
     pub fn read_request(
         mut self,
     ) -> impl Future<Item = (Self, Request<BNetPacket>), Error = SessionError> {
-        let codec = self.codec.take().unwrap();
+        let codec = self.take_codec();
         codec.into_future()
     		// The codec is dropped on error!
     		.map_err(|(error, _)| error.into())
@@ -81,8 +85,9 @@ impl LightWeightSession {
         mut self,
         response: Response<BNetPacket>,
     ) -> impl Future<Item = LightWeightSession, Error = SessionError> {
-        let codec = self.codec.take().unwrap();
+        let codec = self.take_codec();
         codec
+            // EXPLAIN: Asserted Response<X> contains exactly one packet.
             .send(response.unwrap())
             .map_err(|error| error.into())
             .and_then(|stream| {
@@ -95,18 +100,20 @@ impl LightWeightSession {
     ///
     /// This transformation comes with big allocations.
     pub fn into_full_session(
-        self,
+        mut self,
         server_shared: Arc<Mutex<ServerShared>>,
     ) -> impl Future<Item = (), Error = SessionError> {
+        // Take codec to adhere to template.
+        // This leaves an empty codec behind inside the object.
+        let codec = self.take_codec();
+
         let LightWeightSession {
             address,
-            codec,
+            codec: _empty_codec,
             logger,
         } = self;
         let client_id = ClientHash::from_socket_address(address);
         let shared_data = ClientSharedData::new(client_id, server_shared, logger);
-        //
-        let codec = codec.expect("Codec contract invalid");
         let router = RoutingLogistic::default_handlers(shared_data, codec);
         let session_future = ClientSession::new(address, router);
         session_future

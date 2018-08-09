@@ -78,6 +78,7 @@ impl RPCRouter for ConnectionService {
     type SharedData = ClientSharedData;
 
     fn can_accept(packet: &Request<BNetPacket>) -> RPCResult<&'static Methods> {
+        // EXPLAIN: Asserted Request<&X> contains exactly one packet.
         let packet_header = packet.as_ref().unwrap().header();
         let packet_service_hash = packet_header.service_id;
         let packet_method_id = packet_header.method_id.ok_or(RPCError::UnknownRequest {
@@ -118,6 +119,7 @@ impl RPCRouter for ConnectionService {
 }
 
 fn validate_connect_request<'a>(packet: &'a Request<BNetPacket>) -> RPCResult<()> {
+    // EXPLAIN: Asserted Request<&X> contains exactly one packet.
     let packet_data = packet.as_ref().unwrap();
     let header = packet_data.header();
     let method_test = header.method_id.ok_or_else(|| RPCError::UnknownRequest {
@@ -158,6 +160,7 @@ fn op_connect(
     use firestarter_generated::proto::bnet::protocol::ProcessId;
     use service::bnet::service_info::{SERVICES_EXPORTED_BINDING, SERVICES_IMPORTED_BINDING};
 
+    // EXPLAIN: Asserted Request<&X> contains exactly one packet.
     let payload = request.as_ref().unwrap().body().clone();
     let message = ConnectRequest::decode(payload)?;
     trace!(shared.logger(), "Handshake request"; "message" => ?message);
@@ -177,6 +180,7 @@ fn op_connect(
     //
     // The comments below will explain building a response in the
     // perspective of the client.
+    // EXPLAIN: Asserted Option contains Some.
     let BindRequest {
         imported_service_hash: exported_services,
         exported_service: imported_services,
@@ -234,6 +238,7 @@ fn op_connect(
 
     trace!(shared.logger(), "Handshake response ready"; "message" => ?response_message);
     let mut body = BytesMut::with_capacity(response_message.encoded_len());
+    // EXPLAIN: Asserted there is enough room in the buffer.
     response_message.encode(&mut body).unwrap();
     let body = body.freeze();
 

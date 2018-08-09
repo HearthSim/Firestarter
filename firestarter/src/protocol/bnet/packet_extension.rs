@@ -17,6 +17,7 @@ impl BNetPacket {
     /// Try to parse a [`Request`] from this packet.
     pub fn try_as_request(self) -> Result<Request<Self>, Self> {
         match self.try_as_response() {
+            // EXPLAIN: Asserted Response<X> contains exactly one packet.
             Ok(response) => Err(response.unwrap()),
             Err(packet) => Ok(Request::new(packet)),
         }
@@ -38,6 +39,7 @@ impl BNetPacket {
 impl Response<BNetPacket> {
     /// Build a packet which is a direct [`Response`] to the mentioned [`Request`].
     pub fn from_request(request: Request<BNetPacket>, body: Bytes) -> Self {
+        // EXPLAIN: Asserted Request<X> contains exactly one packet.
         let request = request.unwrap();
         let Header { token, .. } = request.header();
 
@@ -55,11 +57,13 @@ impl Response<BNetPacket> {
 
     /// Builds an empty response packet for the given request.
     pub fn empty(request: Request<BNetPacket>) -> Self {
+        // EXPLAIN: Asserted Request<X> contains exactly one packet.
         let request = request.unwrap();
         let Header { token, .. } = request.header();
 
         let payload = NoData {};
         let mut body = BytesMut::with_capacity(payload.encoded_len());
+        // EXPLAIN: Asserted there is enough room in the buffer.
         payload.encode(&mut body).unwrap();
         let body = body.freeze();
 
