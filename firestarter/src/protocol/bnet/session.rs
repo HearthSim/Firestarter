@@ -10,7 +10,7 @@ use tokio_codec::Framed;
 use tokio_tcp::TcpStream;
 
 use protocol::bnet::frame::{BNetCodec, BNetPacket};
-use protocol::bnet::router::{RouterBehaviour, RoutingLogistic};
+use protocol::bnet::router::RoutingLogistic;
 use rpc::transport::{Request, Response};
 use server::lobby::ServerShared;
 
@@ -118,14 +118,17 @@ impl LightWeightSession {
 /// A complete user session.
 ///
 /// This structure contains the necessary data to properly communicate with a specific client.
-pub struct ClientSession<Router: RouterBehaviour> {
+pub struct ClientSession<Router>
+where
+    Router: Future<Error = SessionError>,
+{
     address: SocketAddr,
     router: Router,
 }
 
 impl<Router> ClientSession<Router>
 where
-    Router: RouterBehaviour,
+    Router: Future<Error = SessionError>,
 {
     /// Creates a new session object for the connected client.
     pub fn new(address: SocketAddr, router: Router) -> Self {
@@ -135,17 +138,19 @@ where
 
 impl<Router> Future for ClientSession<Router>
 where
-    Router: RouterBehaviour,
+    Router: Future<Error = SessionError>,
 {
     type Item = ();
     type Error = SessionError;
 
     fn poll(&mut self) -> Poll<(), SessionError> {
         // Activate message pump of router.
-        // try_ready!(self.router.poll());
+        let _ = try_ready!(self.router.poll());
 
         // Do other stuff..
-        unimplemented!()
+        unimplemented!();
+
+        Ok(Async::Ready(()))
     }
 }
 
