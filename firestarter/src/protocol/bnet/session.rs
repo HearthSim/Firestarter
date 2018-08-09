@@ -146,8 +146,8 @@ where
         // Activate message pump of router.
         let _ = try_ready!(self.router.poll());
 
-        // Do other stuff..
-        unimplemented!();
+        // TODO; Do other stuff..
+        // Here is where you would execute post session logic.
 
         Ok(Async::Ready(()))
     }

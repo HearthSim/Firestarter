@@ -19,7 +19,7 @@ pub struct BNetPacket {
 
 impl BNetPacket {
     /// Constructs a new BNetPacket.
-    fn new(header: Header, body: Bytes) -> Self {
+    pub fn new(header: Header, body: Bytes) -> Self {
         Self { header, body }
     }
 
