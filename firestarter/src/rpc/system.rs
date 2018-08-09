@@ -25,24 +25,46 @@ impl ServiceHash {
     }
 }
 
-#[allow(missing_docs)]
+/// An object that exposes itself through the RPC interface.
+///
+/// An RPC service is addressable through its hash, see [`ServiceHash`].
+/// Its methods are addressable through the provided Method object, which
+/// is an enum most of the time. (An enum constraint cannot be expressed
+/// currently).
 pub trait RPCService {
+    /// Type used for addressing service methods.
+    ///
+    /// Most of the time this is an enumeration, but that requirement cannot
+    /// be expressed currently.
     type Method: 'static + Sized;
 
+    /// Retrieve the unique hash of this service.
+    ///
+    /// The hash can be used to send requests to this service.
     fn get_hash() -> ServiceHash;
+
+    /// Retrieve the name of this services.
     fn get_name() -> &'static str;
+
+    /// Retrieve all addressable RPC methods attached to this service.
     fn get_methods() -> &'static [(&'static Self::Method, &'static str)];
 }
 
-#[allow(missing_docs)]
+/// The ability to create a new RPC service object.
 pub trait ServiceBinder {
+    /// The type of service instance that will be generated.
     type Service: RPCService;
 
+    /// Creates a new service instance.
     fn bind() -> Self::Service;
 }
 
-#[allow(missing_docs)]
+/// Behaviour intended for containers of RPC service objects.
+///
+/// Implementations should constrain their children with the [`ServiceBinder`]
+/// trait to properly build the objects itself.
 pub trait ServiceBinderGenerator {
+    /// Generate a bunch of services with the default parameters.
     fn default() -> Self;
 }
 

@@ -33,15 +33,29 @@ pub enum RouteDecision<Packet> {
     Forward(InternalPacket),
 }
 
-#[allow(missing_docs)]
+/// Accepts the chosen (packet) request format and produces the provided response.
+///
+/// Use the 'can_accept' method to validate which address to use when calling 'handle'.
 pub trait RPCRouter {
+    /// The dataformat that's accepted for handling.
     type Request: RPCPacket;
+    /// The dataformat that's returned by the implemented method.
     type Response: RPCPacket;
+    /// Type to address a specific RPC method.
     type Method: 'static + Send;
+    /// The dataformat that's shared between all handlers of the same client session.
     type SharedData;
 
+    /// Tests if this router can (and will) accept the provided request.
+    ///
+    /// This method also returns the specific method address that will accept
+    /// the data as provided to this method.
     fn can_accept(packet: &Self::Request) -> RPCResult<&'static Self::Method>;
 
+    /// Proces the provided request and build a response.
+    ///
+    /// The response is either calculated immediately or returned as a future.
+    /// The caller is responsible for polling the future in order to retrieve the final result.
     fn handle(
         &mut self,
         method: &Self::Method,
@@ -50,12 +64,21 @@ pub trait RPCRouter {
     ) -> RPCResult<ProcessResult<Self::Response>>;
 }
 
-#[allow(missing_docs)]
+/// Trait for containers of [`RPCRouter`] instances which share the same
+/// Request and Response (packet) format.
+///
+/// Implementers eagerly try to get an appropriate response from one of its routers.
+/// The first valid response encountered will be returned instantly, ignoring the result
+/// of all other routers.
+///
+/// # Note
+/// The order in which all routers are polled is dependant on the implementation.
 pub trait RPCHandling<Data, Request, Response>
 where
     Request: RPCPacket,
     Response: RPCPacket,
 {
+    /// Attempt to route the provided packet to a compatible handler.
     fn route_packet(
         &mut self,
         shared_data: &mut Data,

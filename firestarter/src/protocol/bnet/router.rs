@@ -53,7 +53,10 @@ impl ClientSharedData {
     }
 }
 
-#[allow(missing_docs)]
+/// Object which routes packets between provided services.
+///
+/// This router object can process incoming packets from an external client and
+/// packets matching the internal routing protocol.
 pub struct RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,

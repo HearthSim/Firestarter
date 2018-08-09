@@ -11,17 +11,23 @@ use rpc::router::{ProcessResult, RPCRouter, RouteDecision};
 use rpc::system::{RPCError, RPCResult, RPCService, ServiceBinder, ServiceHash};
 use rpc::transport::{Request, Response};
 
-#[allow(missing_docs)]
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
 /// Addressable methods for this service.
 pub enum Methods {
+    /// Request for RPC communication setup.
     Connect = 1,
+    /// Unknown
     Bind = 2,
+    /// Unknown
     Echo = 3,
+    /// Unknown
     ForceDisconnect = 4,
+    /// Unknown
     KeepAlive = 5,
+    /// Unknown
     Encrypt = 6,
+    /// Unknown
     RequestDisconnect = 7,
 }
 
