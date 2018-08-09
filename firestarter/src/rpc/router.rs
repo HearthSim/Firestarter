@@ -8,7 +8,7 @@ use rpc::system::{RPCError, RPCResult};
 use rpc::transport::internal::InternalPacket;
 use rpc::transport::RPCPacket;
 
-type BoxedFuture<Item> = Box<Future<Item = Item, Error = RPCError>>;
+type BoxedFuture<Item> = Box<Future<Item = Item, Error = RPCError> + Send + 'static>;
 
 /// A result returned by RPC services.
 pub enum ProcessResult<Packet> {

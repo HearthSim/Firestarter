@@ -19,7 +19,7 @@ use tokio_tcp::TcpStream;
 
 use protocol::bnet::frame::{BNetCodec, BNetPacket};
 use protocol::bnet::session::SessionError;
-use rpc::router::{RPCHandling, RouteDecision};
+use rpc::router::{ProcessResult, RPCHandling, RouteDecision};
 use rpc::system::{RPCError, RPCResult, ServiceBinderGenerator};
 use rpc::transport::internal::InternalPacket;
 use rpc::transport::{Never, Request, Response};
@@ -57,76 +57,6 @@ where
     shared_data: ClientSharedData,
 }
 
-impl<BNReq, BNRes> RoutingLogistic<BNReq, BNRes>
-where
-    BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
-{
-    fn poll_blocking_operation(&mut self) -> Poll<(), SessionError> {
-        let mut ready_decision = None;
-        if let Some(blocked) = self.bnet_blocked_response.as_mut() {
-            ready_decision = Some(try_ready!(blocked.poll()));
-        }
-
-        // Seperate block is necessary because we cannot take out the future
-        // while holding a borrow to it.
-        // Until NLL arrives.
-        if let Some(decision) = ready_decision {
-            let _ = self.bnet_blocked_response.take();
-
-            match decision {
-                RouteDecision::Stop => {}
-                RouteDecision::Out(packet) => {
-                    self.queued_responses.push_back(packet);
-                }
-                RouteDecision::Forward(packet) => unimplemented!(),
-            };
-        }
-
-        Ok(Async::Ready(()))
-    }
-
-    fn attempt_drain_blocking_buffer(&mut self) -> Result<(), SessionError> {
-        if self.bnet_blocked_response.is_none() {
-            if let Some(packet) = self.bnet_blocking_buffer.take() {
-                self.handle_external_bnet(packet)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn handle_external_bnet(&mut self, packet: BNetPacket) -> Result<(), SessionError> {
-        let mut packet_opt = Some(packet);
-
-        if let Some(packet) = packet_opt.take() {
-            match packet.try_as_request() {
-                Ok(request) => {
-                    let response = self.route_bnet_request(request);
-                    unimplemented!()
-                }
-                Err(packet) => packet_opt = Some(packet),
-            };
-        }
-
-        if let Some(packet) = packet_opt.take() {
-            match packet.try_as_response() {
-                Ok(response) => {
-                    let response = self.route_bnet_response(response);
-                    unimplemented!()
-                }
-                Err(packet) => packet_opt = Some(packet),
-            };
-        }
-
-        if let Some(packet) = packet_opt {
-            Err(RPCError::NoRoute)?;
-        }
-
-        Ok(())
-    }
-}
-
 impl<BNReq, BNRes> Future for RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
@@ -153,7 +83,11 @@ where
         };
 
         // Process next blocking packet.
-        self.attempt_drain_blocking_buffer()?;
+        if self.bnet_blocked_response.is_none() {
+            if let Some(packet) = self.bnet_blocking_buffer.take() {
+                let result = self.process_external_bnet(packet)?;
+            }
+        }
 
         // Only pull new packets if there is room to store potential blocking ones.
         'receive: loop {
@@ -166,9 +100,7 @@ where
                             return Ok(Async::Ready(()));
                         }
                         Some(packet) => {
-                            let result = self.handle_external_bnet(packet);
-                            unimplemented!();
-
+                            self.process_external_bnet(packet)?;
                             // Explicitly continue the loop because the default case
                             // is breaking.
                             continue 'receive;
@@ -218,6 +150,154 @@ where
     }
 }
 
+impl<BNReq, BNRes> RoutingLogistic<BNReq, BNRes>
+where
+    BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
+    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
+{
+    /// Creates a new object for routing packets between provided services.
+    fn new(
+        shared_data: ClientSharedData,
+        codec: Framed<TcpStream, BNetCodec>,
+        bnet_request_handlers: BNReq,
+        bnet_response_handlers: BNRes,
+    ) -> Self {
+        RoutingLogistic {
+            bnet_request_handlers,
+            bnet_response_handlers,
+
+            bnet_blocking_buffer: None,
+            bnet_blocked_response: None,
+            queued_responses: VecDeque::with_capacity(2),
+
+            codec,
+            shared_data,
+        }
+    }
+
+    fn poll_blocking_operation(&mut self) -> Poll<(), SessionError> {
+        let mut ready_decision = None;
+        if let Some(blocked) = self.bnet_blocked_response.as_mut() {
+            ready_decision = Some(try_ready!(blocked.poll()));
+        }
+
+        // Seperate block is necessary because we cannot take out the future
+        // while holding a borrow to it.
+        // Until NLL arrives.
+        if let Some(decision) = ready_decision {
+            let _ = self.bnet_blocked_response.take();
+            self.handle_bnet_response_decision(decision);
+        }
+
+        Ok(Async::Ready(()))
+    }
+
+    fn process_external_bnet(&mut self, packet: BNetPacket) -> Result<(), SessionError> {
+        let mut packet_opt = Some(packet);
+
+        if let Some(packet) = packet_opt.take() {
+            match packet.try_as_request() {
+                Ok(request) => {
+                    self.route_bnet_request(request)?;
+                }
+                Err(packet) => packet_opt = Some(packet),
+            };
+        }
+
+        if let Some(packet) = packet_opt.take() {
+            match packet.try_as_response() {
+                Ok(response) => {
+                    self.route_bnet_response(response)?;
+                }
+                Err(packet) => packet_opt = Some(packet),
+            };
+        }
+
+        Err(RPCError::NoRoute)?
+    }
+
+    fn route_bnet_request(&mut self, request: Request<BNetPacket>) -> RPCResult<()> {
+        let route_result = self
+            .bnet_request_handlers
+            .route_packet(&mut self.shared_data, &request);
+
+        match route_result? {
+            ProcessResult::Immediate(decision) => self.handle_bnet_response_decision(decision),
+            ProcessResult::NotReady(blocking_operation) => {
+                if self.bnet_blocked_response.is_none() {
+                    self.bnet_blocked_response = Some(blocking_operation);
+                    return Ok(());
+                }
+
+                if self.bnet_blocking_buffer.is_none() {
+                    self.bnet_blocking_buffer = Some(request.unwrap());
+                    return Ok(());
+                }
+
+                // If we reach this point the current packet and operation will be dropped.
+                // The wrapping logic MUST make sure we don't get to this point!
+                unreachable!();
+            }
+        };
+
+        Ok(())
+    }
+
+    fn route_bnet_response(&mut self, response: Response<BNetPacket>) -> RPCResult<()> {
+        let route_result = self
+            .bnet_response_handlers
+            .route_packet(&mut self.shared_data, &response);
+
+        match route_result? {
+            ProcessResult::Immediate(decision) => self.handle_never_response_decision(decision),
+            ProcessResult::NotReady(blocking_operation) => {
+                if self.bnet_blocked_response.is_none() {
+                    let mapped_future = blocking_operation.map(|result| match result {
+                        RouteDecision::Stop => RouteDecision::Stop,
+                        RouteDecision::Out(_) => RouteDecision::Out(Response::None),
+                        RouteDecision::Forward(data) => RouteDecision::Forward(data),
+                    });
+                    self.bnet_blocked_response = Some(Box::new(mapped_future));
+                    return Ok(());
+                }
+
+                if self.bnet_blocking_buffer.is_none() {
+                    self.bnet_blocking_buffer = Some(response.unwrap());
+                    return Ok(());
+                }
+
+                // If we reach this point the current packet and operation will be dropped.
+                // The wrapping logic MUST make sure we don't get to this point!
+                unreachable!();
+            }
+        };
+
+        Ok(())
+    }
+
+    fn handle_never_response_decision(&mut self, decision: RouteDecision<Never>) {
+        match decision {
+            RouteDecision::Stop => {}
+            RouteDecision::Out(_) => {}
+            RouteDecision::Forward(packet) => {
+                unimplemented!();
+            }
+        }
+    }
+
+    fn handle_bnet_response_decision(&mut self, decision: RouteDecision<Response<BNetPacket>>) {
+        match decision {
+            RouteDecision::Stop => {}
+            RouteDecision::Out(packet) => {
+                self.queued_responses.push_back(packet);
+            }
+            RouteDecision::Forward(packet) => {
+                unimplemented!();
+            }
+        };
+    }
+}
+
 impl<BNReq, BNRes> fmt::Debug for RoutingLogistic<BNReq, BNRes>
 where
     BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>> + fmt::Debug,
@@ -263,84 +343,5 @@ mod default {
                 bnet_response_handlers,
             )
         }
-    }
-}
-
-impl<BNReq, BNRes> RoutingLogistic<BNReq, BNRes>
-where
-    BNReq: RPCHandling<ClientSharedData, Request<BNetPacket>, Response<BNetPacket>>,
-    BNRes: RPCHandling<ClientSharedData, Response<BNetPacket>, Never>,
-{
-    /// Creates a new object for routing packets between provided services.
-    fn new(
-        shared_data: ClientSharedData,
-        codec: Framed<TcpStream, BNetCodec>,
-        bnet_request_handlers: BNReq,
-        bnet_response_handlers: BNRes,
-    ) -> Self {
-        RoutingLogistic {
-            bnet_request_handlers,
-            bnet_response_handlers,
-
-            bnet_blocking_buffer: None,
-            bnet_blocked_response: None,
-            queued_responses: VecDeque::with_capacity(2),
-
-            codec,
-            shared_data,
-        }
-    }
-
-    fn route_bnet_request(&mut self, request: Request<BNetPacket>) -> RPCResult<()> {
-        let route_result = self
-            .bnet_request_handlers
-            .route_packet(&mut self.shared_data, &request);
-
-        /*
-            .and_then(move |bytes_opt| match bytes_opt {
-                Some(body) => {
-                    let response = Response::from_request(request, body);
-                    Ok(RouteDecision::Out(response.unwrap()))
-                }
-                None => Ok(RouteDecision::Stop),
-            })
-        */
-        unimplemented!()
-    }
-
-    fn route_bnet_response(&mut self, packet: Response<BNetPacket>) -> RPCResult<()> {
-        let route_result = self
-            .bnet_response_handlers
-            .route_packet(&mut self.shared_data, &packet);
-
-        /*
-            .and_then(move |bytes_opt| {
-                // TODO; Find out what to do with a response to a response!
-                Ok(RouteDecision::Stop)
-            })
-        */
-        unimplemented!()
-    }
-
-    fn handle_route_decision() {
-        /*
-        let current_future = self.bnet_response_queue.pop_front();
-        match current_future {
-            Some(future) => {
-                let polled_result = future.poll()?;
-                if let Async::Ready(route_decision) = polled_result {
-                    match route_decision {
-                        RouteDecision::Stop => {}
-                        RouteDecision::Out(packet) => return Ok(Async::Ready(Some(packet))),
-                        RouteDecision::Forward(_) => return Err(RPCError::NotImplemented),
-                    }
-                } else {
-                    self.bnet_response_queue.push_front(current_future.unwrap());
-                }
-            }
-            None => {}
-        };
-         */
-        unimplemented!()
     }
 }
